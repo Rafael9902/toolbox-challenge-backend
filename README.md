@@ -152,7 +152,10 @@ prohíbe depender de ellas, y hardcodearlas evita el parseo de strings y los def
 npm test
 ```
 
-Mocha + Chai, con `supertest` para las rutas. La suite corre **sin red real**. Los fakes son objetos literales inyectados por `buildApp()`, que devuelve la app
+Mocha + Chai, con `supertest` para las rutas. La suite corre **sin red real**.
+
+En cada push a `main` y en cada pull request, GitHub Actions corre `npm ci && npm test` sobre
+**NodeJS 14** (`.github/workflows/ci.yml`), que es el runtime que exige el challenge. Los fakes son objetos literales inyectados por `buildApp()`, que devuelve la app
 sin llamar a `listen()`.
 
 ## Decisiones de diseño

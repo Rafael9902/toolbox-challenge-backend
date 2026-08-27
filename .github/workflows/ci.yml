@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests on NodeJS 14
+    # NodeJS 14 predates ubuntu-24.04 and is not built against its glibc,
+    # so the runner is pinned rather than tracking ubuntu-latest.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up NodeJS
+        uses: actions/setup-node@v4
+        with:
+          # Kept in sync with .nvmrc and package.json engines.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report the runtime actually in use
+        run: node -v && npm -v
+
+      - name: Run the test suite
+        run: npm test
