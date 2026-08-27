@@ -1,7 +1,8 @@
 {
   "name": "toolbox-challenge-backend",
   "version": "1.0.0",
-  "description": "API REST que consume el API externo de Toolbox, formatea los CSV y los expone como JSON.",
+  "description": "Rafael backend challenge",
+  "author": "Rafael Ortiz <rafaelortiz.0602@gmail.com>",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -15,7 +16,7 @@
     "toolbox",
     "challenge",
     "express",
-    "wide-events"
+    "logging"
   ],
   "license": "MIT",
   "dependencies": {
