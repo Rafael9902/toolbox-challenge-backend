@@ -1,0 +1,33 @@
+{
+  "name": "toolbox-challenge-backend",
+  "version": "1.0.0",
+  "description": "API REST que consume el API externo de Toolbox, formatea los CSV y los expone como JSON.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=14"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "mocha"
+  },
+  "keywords": [
+    "toolbox",
+    "challenge",
+    "express",
+    "wide-events"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.8",
+    "express": "^4.19.2",
+    "pino": "^8.21.0"
+  },
+  "devDependencies": {
+    "chai": "^4.4.1",
+    "mocha": "^10.4.0",
+    "nock": "^13.5.4",
+    "sinon": "^15.2.0",
+    "supertest": "^6.3.4"
+  }
+}

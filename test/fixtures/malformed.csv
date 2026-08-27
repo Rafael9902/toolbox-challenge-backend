@@ -1,0 +1,4 @@
+file,text,number,hex
+file1.csv,ok,1,f9e1bcdb9e3784acc448af34f4727252
+file1.csv,faltan,columnas
+file1.csv,noesnumero,abc,f9e1bcdb9e3784acc448af34f4727252
