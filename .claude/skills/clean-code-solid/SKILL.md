@@ -75,6 +75,25 @@ Comentarios sueltos `//` sólo para directivas (`eslint-disable-next-line`) o pa
 que rompería el código si se toca —por ejemplo, que Express detecta el handler de errores por su
 aridad de 4 parámetros, así que `next` no se puede borrar aunque no se use—. Una línea, no un párrafo.
 
+## Mensajes de commit
+
+[Conventional Commits](https://www.conventionalcommits.org/), verificado por `commitlint` en el hook
+`commit-msg`. Un mensaje que no cumple bloquea el commit.
+
+```
+<type>: <subject en imperativo, minúscula, sin punto final>
+
+<cuerpo opcional: qué cambió y por qué, líneas de hasta 100 caracteres>
+```
+
+Types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`.
+
+Los acrónimos en el subject están permitidos (`feat: expose the CSV parser`): la regla `subject-case`
+está relajada a propósito, porque el dominio de este proyecto es CSV, JSON y HTTP. Lo que sigue
+prohibido es un subject entero en mayúsculas o en PascalCase.
+
+El `pre-commit` corre `npm run test:unit`. Si necesitás saltear ambos hooks: `git commit --no-verify`.
+
 ## Patrones que se ganan el lugar acá
 
 - **Factory function** → sólo en `shared/`, y sólo donde un test necesita intercambiar la dependencia

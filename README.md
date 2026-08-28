@@ -46,6 +46,27 @@ npm run test:integration # sólo los tests de integración
 No hace falta configurar **ninguna** variable de entorno: todos los valores están en
 `src/shared/config.js`. Un clon limpio arranca con `npm install && npm start`.
 
+## Git hooks
+
+`npm install` instala los hooks vía husky (script `prepare`):
+
+| Hook | Qué corre | Bloquea si |
+|---|---|---|
+| `pre-commit` | `npm run test:unit` | algún test unitario falla |
+| `commit-msg` | `commitlint` | el mensaje no sigue [Conventional Commits](https://www.conventionalcommits.org/) |
+
+Sólo corre la suite unitaria en el pre-commit: son milisegundos y no toca la red. La de integración
+queda para el CI.
+
+```
+feat: add the files repository
+fix: discard CSV lines with a non-numeric number
+docs: document the response contracts
+```
+
+Types válidos: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`,
+`test`. Para saltear los hooks en una emergencia: `git commit --no-verify`.
+
 ## Endpoints
 
 ### `GET /files/health`

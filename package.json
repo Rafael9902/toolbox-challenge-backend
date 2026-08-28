@@ -9,6 +9,7 @@
     "node": ">=14"
   },
   "scripts": {
+    "prepare": "husky install",
     "start": "node src/server.js",
     "test": "mocha \"test/**/*.test.js\"",
     "test:unit": "mocha \"test/unit/**/*.test.js\"",
@@ -27,7 +28,10 @@
     "pino": "^8.21.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^17.8.1",
+    "@commitlint/config-conventional": "^17.8.1",
     "chai": "^4.4.1",
+    "husky": "^8.0.3",
     "mocha": "^10.4.0",
     "nock": "^13.5.4",
     "sinon": "^15.2.0",
