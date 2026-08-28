@@ -173,3 +173,16 @@ sin llamar a `listen()`.
   de tests). La documentación queda en español.
 - **Versiones de dependencias fijadas por Node 14**: `chai@4` (la 5 es ESM-only y exige Node 18+),
   `mocha@10`, `sinon@15`. Ver `.claude/skills/node14-constraints/`.
+
+## Skills de Claude Code
+
+`.claude/skills/` contiene las reglas de arquitectura de este proyecto en formato ejecutable por
+Claude Code. Sirven además como documentación de diseño para cualquier persona que trabaje en el repo:
+
+| Skill | Cubre |
+|---|---|
+| `feature-module` | Capas de un módulo, encapsulación, reglas de import, contratos de respuesta |
+| `logging` | Una línea de log por request, cómo enriquecerla, convención de campos |
+| `node14-constraints` | APIs ausentes en NodeJS 14, ESM, versiones de dependencias compatibles |
+| `testing-mocha-chai` | Qué se mockea en cada nivel, escenarios obligatorios, chai en ESM |
+| `clean-code-solid` | SOLID en programación funcional, JSDoc, patrones descartados y por qué |

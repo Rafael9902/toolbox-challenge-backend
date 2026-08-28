@@ -3,4 +3,3 @@ coverage/
 *.log
 .DS_Store
 .env
-.claude/
