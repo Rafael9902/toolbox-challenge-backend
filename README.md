@@ -2,9 +2,10 @@
 
 API REST que consume el API externo de Toolbox, formatea el contenido de los archivos CSV y lo expone como JSON.
 
-> **Estado:** esqueleto de la aplicación e infraestructura de observabilidad (`BACKEND - TASK-001`).
-> La lógica de negocio del challenge —listar archivos, descargarlos, parsear los CSV y exponer
-> `GET /files/data`— corresponde a las tarjetas `TASK-002` a `TASK-005` y todavía no está implementada.
+> **Estado:** el flujo principal del challenge está implementado (`BACKEND - TASK-001` a `TASK-005`):
+> `GET /files/data` lista los archivos del API externo, los descarga, formatea sus CSV y los expone
+> como JSON. Los puntos opcionales (`GET /files/list`, filtro `?fileName=`, StandardJS, Docker) siguen
+> pendientes.
 
 ---
 
@@ -68,6 +69,39 @@ Types válidos: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor
 `test`. Para saltear los hooks en una emergencia: `git commit --no-verify`.
 
 ## Endpoints
+
+### `GET /files/data`
+
+Devuelve todos los archivos del API externo ya formateados. El cuerpo es un array pelado, sin
+envoltorio, tal como lo fija el enunciado.
+
+```bash
+curl -s http://localhost:3000/files/data
+```
+
+```json
+[
+  {
+    "file": "test3.csv",
+    "lines": [
+      { "text": "g", "number": 101382507, "hex": "65badd1f29e6235199261cd3026a97f5" }
+    ]
+  }
+]
+```
+
+Decisiones de comportamiento:
+
+- **Falla parcial.** Si la descarga de un archivo falla, ese archivo se omite de la respuesta y los
+  demás se devuelven igual: el request sigue siendo `200`. Los archivos que fallaron quedan
+  registrados en la línea de log (`files_failed`, `files_failed_names`).
+- **Ningún archivo procesable.** Si fallan todas las descargas, la respuesta es `200` con `[]`.
+- **Archivo vacío o sin líneas válidas.** Se incluye con `"lines": []` en vez de omitirse, para que
+  el cliente sepa que el archivo existe y no traía nada usable.
+- **Falla del listado.** Es distinta de una falla parcial: no hay nada que devolver, así que responde
+  con un error JSON (`502`, `EXTERNAL_API_UNAVAILABLE`).
+- Las líneas descartadas por formato inválido no viajan en el cuerpo; se cuentan en la línea de log
+  como `lines_discarded`.
 
 ### `GET /files/health`
 
