@@ -9,4 +9,5 @@ import * as filesController from './files.controller.js'
  */
 export const filesRouter = Router()
 
+filesRouter.get('/data', filesController.getFilesData)
 filesRouter.get('/health', filesController.getHealth)
