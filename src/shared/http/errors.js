@@ -1,4 +1,4 @@
-import { isAppError, createAppError, ERROR_CODES } from '../appError.js'
+import { isAppError, createAppError, describeError, ERROR_CODES } from '../appError.js'
 
 /**
  * Catch-all for unmatched routes. Express answers those with HTML by default,
@@ -34,14 +34,7 @@ export const errorHandler = (error, req, res, next) => {
   const known = isAppError(error)
   const code = known ? error.code : ERROR_CODES.INTERNAL
 
-  req.logger?.add({
-    error: {
-      type: error.name,
-      code,
-      message: error.message,
-      retriable: known ? error.retriable : false
-    }
-  })
+  req.logger?.add({ error: describeError(error) })
 
   res.status(known ? error.status : 500).json({
     error: { code, message: known ? error.message : 'Internal server error' }

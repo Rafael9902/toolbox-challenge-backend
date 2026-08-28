@@ -146,7 +146,11 @@ describe('GET /files/data', () => {
     const res = await request(buildApp({ logDestination })).get('/files/data').expect(502)
 
     expect(res.headers['content-type']).to.match(/application\/json/)
+    expect(res.text).to.not.include('<html')
+    expect(res.body).to.have.all.keys('error')
+    expect(res.body.error).to.have.all.keys('code', 'message')
     expect(res.body.error.code).to.equal('EXTERNAL_API_UNAVAILABLE')
+    expect(res.body.error.message).to.be.a('string').and.not.be.empty
   })
 
   describe('observability', () => {

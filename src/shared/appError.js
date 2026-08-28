@@ -44,3 +44,24 @@ export const createAppError = ({
  * @returns {boolean} True when the error was built by {@link createAppError}.
  */
 export const isAppError = (error) => error instanceof Error && error.name === 'AppError'
+
+/**
+ * Shapes any thrown value as the `error` object of a log line.
+ *
+ * Accepts values that are not `Error` instances: a rejected promise carries
+ * whatever it was rejected with, and this runs where throwing again is fatal.
+ *
+ * @param {*} error
+ * @returns {{ type: string, code: string, message: string, retriable: boolean }}
+ */
+export const describeError = (error) => {
+  const known = isAppError(error)
+  const isError = error instanceof Error
+
+  return {
+    type: isError ? error.name : typeof error,
+    code: known ? error.code : ERROR_CODES.INTERNAL,
+    message: isError ? error.message : `Non-error value rejected: ${typeof error}`,
+    retriable: known ? error.retriable : false
+  }
+}
