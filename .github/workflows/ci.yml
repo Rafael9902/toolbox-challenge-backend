@@ -8,10 +8,17 @@ on:
 
 jobs:
   test:
-    name: Tests on NodeJS 14
+    name: ${{ matrix.suite }} tests on NodeJS 14
     # NodeJS 14 predates ubuntu-24.04 and is not built against its glibc,
     # so the runner is pinned rather than tracking ubuntu-latest.
     runs-on: ubuntu-22.04
+
+    strategy:
+      # Each suite reports its own check, so one failing must not cancel the
+      # other: a single push has to report both.
+      fail-fast: false
+      matrix:
+        suite: [unit, integration]
 
     steps:
       - name: Check out the repository
@@ -30,11 +37,5 @@ jobs:
       - name: Report the runtime actually in use
         run: node -v && npm -v
 
-      - name: Unit tests
-        run: npm run test:unit
-
-      # Runs even when the unit step failed, so one push reports both
-      # categories instead of hiding the second behind the first.
-      - name: Integration tests
-        if: success() || failure()
-        run: npm run test:integration
+      - name: Run the ${{ matrix.suite }} suite
+        run: npm run test:${{ matrix.suite }}
