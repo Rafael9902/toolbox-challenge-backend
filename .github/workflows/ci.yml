@@ -39,3 +39,30 @@ jobs:
 
       - name: Run the ${{ matrix.suite }} suite
         run: npm run test:${{ matrix.suite }}
+
+  full-suite:
+    name: npm test on NodeJS 14
+    # The command the evaluator runs, on a scrubbed environment: the challenge
+    # requires the whole suite to pass with no variable defined and exit 0.
+    # Asserting this from inside the suite would only test the suite itself.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up NodeJS
+        uses: actions/setup-node@v4
+        with:
+          # Kept in sync with .nvmrc and package.json engines.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report the runtime actually in use
+        run: node -v && npm -v
+
+      - name: Run the whole suite with only PATH and HOME defined
+        run: env -i "PATH=$PATH" "HOME=$HOME" npm test
