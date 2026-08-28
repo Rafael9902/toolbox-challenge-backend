@@ -162,8 +162,10 @@ Mocha + Chai, con `supertest` para las rutas. La suite corre **sin red real**.
 | `npm run test:unit` | `test/unit/` — funciones puras y piezas aisladas, sin Express |
 | `npm run test:integration` | `test/integration/` — `supertest` contra `buildApp()` |
 
-En cada push a `main` y en cada pull request, GitHub Actions corre `npm ci && npm test` sobre
-**NodeJS 14** (`.github/workflows/ci.yml`), que es el runtime que exige el challenge. Los fakes son objetos literales inyectados por `buildApp()`, que devuelve la app
+En cada push a `main` y en cada pull request, GitHub Actions corre la suite sobre **NodeJS 14**
+(`.github/workflows/ci.yml`), que es el runtime que exige el challenge. Unit e integration van en
+pasos separados para que se vea cuál falló sin abrir el log, y el segundo corre aunque el primero
+haya fallado. Los fakes son objetos literales inyectados por `buildApp()`, que devuelve la app
 sin llamar a `listen()`.
 
 ## Decisiones de diseño

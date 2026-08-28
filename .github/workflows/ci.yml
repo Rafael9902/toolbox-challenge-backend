@@ -29,5 +29,11 @@ jobs:
       - name: Report the runtime actually in use
         run: node -v && npm -v
 
-      - name: Run the test suite
-        run: npm test
+      - name: Unit tests
+        run: npm run test:unit
+
+      # Runs even when the unit step failed, so one push reports both
+      # categories instead of hiding the second behind the first.
+      - name: Integration tests
+        if: success() || failure()
+        run: npm run test:integration
