@@ -217,3 +217,8 @@ Claude Code. Sirven además como documentación de diseño para cualquier person
 | `node14-constraints` | APIs ausentes en NodeJS 14, ESM, versiones de dependencias compatibles |
 | `testing-mocha-chai` | Qué se mockea en cada nivel, escenarios obligatorios, chai en ESM |
 | `clean-code-solid` | SOLID en programación funcional, JSDoc, patrones descartados y por qué |
+
+## Historias de usuario
+
+El backlog completo del proyecto —las 12 historias con criterios de aceptación en Gherkin, estimación
+y chequeo INVEST— está en [`docs/user-stories.md`](docs/user-stories.md).
