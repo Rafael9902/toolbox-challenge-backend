@@ -5,7 +5,17 @@ description: Cómo se escriben y corren los tests de este API con Mocha + Chai +
 
 # Testing — Mocha + Chai + supertest
 
-`npm test` corre Mocha con la config de `.mocharc.json` (`test/**/*.test.js`). Debe terminar en verde con exit code `0`, **sin red real y sin variables de entorno definidas**.
+| Comando | Corre |
+|---|---|
+| `npm test` | todo — es el que exige el challenge |
+| `npm run test:unit` | `test/unit/` — funciones puras y piezas aisladas, sin Express |
+| `npm run test:integration` | `test/integration/` — `supertest` contra `buildApp()` |
+
+Todo debe terminar en verde con exit code `0`, **sin red real y sin variables de entorno definidas**.
+
+**El spec va en el script, no en `.mocharc.json`.** Mocha *fusiona* el spec del archivo de config con
+el argumento del CLI en vez de reemplazarlo: si `.mocharc.json` declara `spec`, `npm run test:unit`
+corre igual la suite completa y parece que funciona. `.mocharc.json` sólo lleva `timeout`.
 
 ## Import de chai en ESM
 

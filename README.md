@@ -36,9 +36,11 @@ Todos los comandos del proyecto deben ejecutarse desde ese shell x86_64.
 ## Instalación y uso
 
 ```bash
-npm install     # instalar dependencias
-npm start       # levantar el API (puerto 3000 por defecto)
-npm test        # correr la suite (Mocha + Chai)
+npm install              # instalar dependencias
+npm start                # levantar el API (puerto 3000 por defecto)
+npm test                 # correr toda la suite (Mocha + Chai)
+npm run test:unit        # sólo los tests unitarios
+npm run test:integration # sólo los tests de integración
 ```
 
 No hace falta configurar **ninguna** variable de entorno: todos los valores están en
@@ -153,6 +155,12 @@ npm test
 ```
 
 Mocha + Chai, con `supertest` para las rutas. La suite corre **sin red real**.
+
+| Comando | Corre |
+|---|---|
+| `npm test` | Todo |
+| `npm run test:unit` | `test/unit/` — funciones puras y piezas aisladas, sin Express |
+| `npm run test:integration` | `test/integration/` — `supertest` contra `buildApp()` |
 
 En cada push a `main` y en cada pull request, GitHub Actions corre `npm ci && npm test` sobre
 **NodeJS 14** (`.github/workflows/ci.yml`), que es el runtime que exige el challenge. Los fakes son objetos literales inyectados por `buildApp()`, que devuelve la app

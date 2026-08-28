@@ -10,7 +10,9 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "mocha"
+    "test": "mocha \"test/**/*.test.js\"",
+    "test:unit": "mocha \"test/unit/**/*.test.js\"",
+    "test:integration": "mocha \"test/integration/**/*.test.js\""
   },
   "keywords": [
     "toolbox",
