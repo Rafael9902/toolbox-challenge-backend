@@ -47,3 +47,43 @@ export const listFiles = async () => {
 
   return payload.files
 }
+
+/**
+ * Re-raises a download failure naming the affected file.
+ *
+ * The transport error only knows the requested path, where the name travels
+ * percent-encoded; callers need the plain name to report which file failed.
+ *
+ * @param {string} fileName
+ * @param {Error}  cause     AppError raised by the HTTP client.
+ * @returns {Error} AppError carrying the code, status and retriability of `cause`.
+ */
+const downloadFailed = (fileName, cause) => createAppError({
+  code: cause.code,
+  message: `Could not download file: ${fileName}`,
+  status: cause.status,
+  retriable: cause.retriable,
+  cause
+})
+
+/**
+ * Downloads the raw contents of a single file from the external API.
+ *
+ * The body is returned as plain text on purpose: parsing the CSV belongs to
+ * the caller.
+ *
+ * @param {string} fileName  Name as served by the listing; percent-encoded
+ *        before being placed in the URL.
+ * @returns {Promise<string>} Raw contents, an empty string for an empty file.
+ * @throws {Error} AppError with `EXTERNAL_API_FILE_NOT_FOUND` when the file is
+ *         unknown to the external API, `EXTERNAL_API_UNAVAILABLE` when the
+ *         request fails or times out. Both name the affected file.
+ */
+export const downloadFile = async (fileName) => {
+  try {
+    const { data } = await client.get(`/file/${encodeURIComponent(fileName)}`)
+    return data
+  } catch (cause) {
+    throw downloadFailed(fileName, cause)
+  }
+}
