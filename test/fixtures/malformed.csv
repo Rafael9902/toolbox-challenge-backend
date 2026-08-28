@@ -1,4 +1,8 @@
 file,text,number,hex
-file1.csv,ok,1,f9e1bcdb9e3784acc448af34f4727252
-file1.csv,faltan,columnas
-file1.csv,noesnumero,abc,f9e1bcdb9e3784acc448af34f4727252
+file1.csv,valid,1,f9e1bcdb9e3784acc448af34f4727252
+file1.csv,missing,columns
+file1.csv,notanumber,abc,f9e1bcdb9e3784acc448af34f4727252
+file1.csv,,7,f9e1bcdb9e3784acc448af34f4727252
+file1.csv,shorthex,7,abc123
+file1.csv,extra,7,f9e1bcdb9e3784acc448af34f4727252,column
+file1.csv,uppercasehex,42,0A1B2C3D4E5F60718293A4B5C6D7E8F9

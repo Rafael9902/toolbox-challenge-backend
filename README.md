@@ -200,6 +200,21 @@ sin llamar a `listen()`.
 - **`notFound` y `errorHandler` en un archivo.** No pueden ser la misma función —Express los
   distingue por aridad, 3 parámetros contra 4— pero son las dos puntas de la misma cadena.
 - **Errores como factory sobre `Error`** en vez de subclases: conserva el stack trace sin introducir clases.
+- **El parser descarta, no falla.** `files.parser.js` es una función pura que nunca lanza por datos
+  corruptos: cuenta las líneas inválidas en `discarded` y el controller las publica como
+  `lines_discarded` en la línea de log. Un archivo con basura no rompe la respuesta de los demás.
+- **Criterio de validación de una línea.** Una línea es válida cuando tiene exactamente cuatro
+  columnas no vacías, la tercera es numérica y la cuarta son **32 caracteres hexadecimales**
+  (`/^[0-9a-f]{32}$/i`, mayúsculas aceptadas). Las 32 posiciones salen de la forma de los datos que
+  devuelve el API Externo; el enunciado no fija el formato, así que se validó lo observable en vez de
+  aceptar cualquier string. Las líneas con **más** de cuatro columnas también se descartan: el CSV no
+  usa comillas, así que una coma de más es dato corrupto, no un campo con coma adentro.
+- **La cabecera se descarta por posición**, no comparando su texto. Una cabecera inesperada
+  contaría como línea inválida e inflaría `lines_discarded`, que es una métrica de datos corruptos.
+  Las líneas en blanco —incluida la final— se ignoran y tampoco se cuentan como descartadas.
+- **El campo `file` de la salida sale del nombre del archivo procesado**, no de la primera columna
+  del CSV: es el nombre con el que se pidió el archivo y el único que el cliente puede correlacionar
+  con el listado.
 - **Todo el código fuente en inglés** (identificadores, comentarios, mensajes de error, nombres
   de tests). La documentación queda en español.
 - **Versiones de dependencias fijadas por Node 14**: `chai@4` (la 5 es ESM-only y exige Node 18+),
