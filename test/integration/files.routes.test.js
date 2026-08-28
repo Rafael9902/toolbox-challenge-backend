@@ -76,6 +76,29 @@ describe('API skeleton', () => {
     })
   })
 
+  describe('cross-origin access', () => {
+    it('lets a browser on another origin read the response', async () => {
+      const { logDestination } = createCapturingLog()
+      const app = buildApp({ logDestination })
+
+      const res = await request(app)
+        .get('/files/health')
+        .set('origin', 'http://localhost:8080')
+        .expect(200)
+
+      expect(res.headers['access-control-allow-origin']).to.equal('*')
+    })
+
+    it('sets the header on error responses too', async () => {
+      const { logDestination } = createCapturingLog()
+      const app = buildApp({ logDestination })
+
+      const res = await request(app).get('/unknown').expect(404)
+
+      expect(res.headers['access-control-allow-origin']).to.equal('*')
+    })
+  })
+
   describe('buildApp', () => {
     it('does not open any port', () => {
       expect(buildApp().listening).to.equal(undefined)

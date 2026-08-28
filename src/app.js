@@ -1,6 +1,7 @@
 import express from 'express'
 
 import { createRequestLogger } from './shared/logger.js'
+import { cors } from './shared/http/cors.js'
 import { notFound, errorHandler } from './shared/http/errors.js'
 import { filesRouter } from './modules/files/index.js'
 
@@ -20,6 +21,7 @@ export const buildApp = ({ logDestination } = {}) => {
 
   app.disable('x-powered-by')
   app.use(express.json())
+  app.use(cors)
   app.use(createRequestLogger(logDestination))
 
   app.use('/files', filesRouter)
