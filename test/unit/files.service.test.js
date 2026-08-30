@@ -178,6 +178,51 @@ describe('files service', () => {
     })
   })
 
+  describe('getFilesList', () => {
+    it('returns the listed file names in listing order', async () => {
+      const { data } = await filesService.getFilesList({
+        listFiles: async () => ['file1.csv', 'file2.csv']
+      })
+
+      expect(data).to.deep.equal(['file1.csv', 'file2.csv'])
+    })
+
+    it('returns an empty array when the external API lists no file', async () => {
+      const { data } = await filesService.getFilesList({ listFiles: async () => [] })
+
+      expect(data).to.deep.equal([])
+    })
+
+    it('counts the listed files in stats', async () => {
+      const { stats } = await filesService.getFilesList({
+        listFiles: async () => ['file1.csv', 'file2.csv', 'file3.csv']
+      })
+
+      expect(stats).to.deep.equal({ files_listed: 3 })
+    })
+
+    it('propagates the error raised when the listing fails', async () => {
+      const listingError = createAppError({
+        code: ERROR_CODES.EXTERNAL_API_UNAVAILABLE,
+        message: 'External API request failed: /files',
+        status: 502,
+        retriable: true
+      })
+
+      const error = await rejectionOf(() => filesService.getFilesList({
+        listFiles: async () => { throw listingError }
+      }))
+
+      expect(error).to.equal(listingError)
+    })
+
+    it('returns the { data, stats } shape every handler follows', async () => {
+      const result = await filesService.getFilesList({ listFiles: async () => [] })
+
+      expect(result).to.have.all.keys('data', 'stats')
+    })
+  })
+
   describe('getHealth', () => {
     it('reports the service as healthy', async () => {
       const { data } = await filesService.getHealth()
