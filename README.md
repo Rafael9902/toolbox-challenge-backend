@@ -3,8 +3,9 @@
 API REST que consume el API externo de Toolbox (`https://echo-serv.tbxnet.com`), formatea el contenido
 de sus archivos CSV descartando las líneas inválidas, y lo expone como JSON en `GET /files/data`.
 
-> **Estado:** el alcance obligatorio del challenge está completo (`BACKEND - TASK-001` a `TASK-008`).
-> Los puntos opcionales siguen pendientes; el detalle está en [Puntos opcionales](#puntos-opcionales).
+> **Estado:** el alcance obligatorio del challenge está completo (`BACKEND - TASK-001` a `TASK-008`),
+> más el punto opcional `GET /files/list` (`TASK-009`). El detalle de los opcionales que faltan está
+> en [Puntos opcionales](#puntos-opcionales).
 
 **Índice:** [Requisitos](#requisitos) · [Instalación y uso](#instalación-y-uso) ·
 [Endpoints](#endpoints) · [Contra el API externo real](#contra-el-api-externo-real) ·
@@ -78,6 +79,7 @@ Todas las respuestas, incluidas las de error, salen en `application/json`.
 | Método | Ruta | Qué hace |
 |---|---|---|
 | `GET` | `/files/data` | Lista, descarga y formatea todos los archivos del API externo |
+| `GET` | `/files/list` | Devuelve el listado de archivos tal cual lo expone el API externo |
 | `GET` | `/files/health` | Verifica que la aplicación está en pie |
 
 ### `GET /files/data`
@@ -127,6 +129,34 @@ archivo; cada línea válida, un `{ text, number, hex }`:
 
 Nada de esto se pierde: los archivos que fallaron y las líneas descartadas quedan contados en la
 línea de log de la request. Ver [Logging](#logging).
+
+### `GET /files/list`
+
+```bash
+curl -s http://localhost:3000/files/list
+```
+
+Devuelve el listado **tal cual lo expone el API externo**, con su envoltorio `{ "files": [...] }` y sin
+reformateo: mismos nombres, mismo orden. Corrida real del **2026-08-30**, byte a byte idéntica a la del
+API externo:
+
+```json
+{
+  "files": [
+    "test1.csv", "test2.csv", "test3.csv", "test18.csv", "test4.csv",
+    "test5.csv", "test6.csv", "test9.csv", "test15.csv"
+  ]
+}
+```
+
+Es el opuesto deliberado de `/files/data`, que va como array pelado: **las dos formas las fija el
+enunciado**, así que ninguna se envuelve ni se desenvuelve por gusto. Internamente el repositorio
+traduce el envoltorio al array de nombres que usa el dominio, y el controller de este endpoint lo
+vuelve a poner al salir.
+
+Este endpoint **no descarga ningún archivo**: es una sola llamada al listado del API externo. Si ese
+listado falla, la respuesta es el mismo `502` con error JSON que devuelve `/files/data`; acá no hay
+nada parcial que entregar.
 
 ### `GET /files/health`
 
@@ -257,6 +287,11 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
 
 ### HTTP
 
+- **Las dos formas de respuesta las fija el enunciado, y ninguna se toca.** `/files/data` va como array
+  pelado y `/files/list` con el envoltorio `{ "files": [...] }` del API externo. Son contrarias entre sí
+  y así se dejan: uniformarlas —o agregarles un envelope `{ meta, data }`— rompería lo único que el
+  evaluador verifica copiando el curl del enunciado. La traducción vive en los bordes: el repositorio
+  desenvuelve el listado para el dominio, y el controller de `/files/list` lo vuelve a envolver al salir.
 - **CORS: se responde `Access-Control-Allow-Origin: *`.** El frontend se sirve desde otro puerto, así
   que sin ese header el browser bloquea la respuesta. Es el **único** header CORS que se manda: el API
   es de sólo lectura, no recibe credenciales ni headers custom, así que sus `GET` son *simple requests*
@@ -281,18 +316,17 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
 
 ## Puntos opcionales
 
-Ninguno de los cuatro está implementado todavía. El alcance entregado es el obligatorio completo.
+Uno de los cuatro está implementado. El alcance obligatorio está completo.
 
 | Punto opcional | Estado | Tarjeta |
 |---|---|---|
-| `GET /files/list` | pendiente | `TASK-009` |
+| [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
 | Filtro `GET /files/data?fileName=` | pendiente | `TASK-010` |
 | StandardJS | pendiente | `TASK-011` |
 | Docker | pendiente | `TASK-012` |
 
-El código ya está preparado para los dos primeros: el repositorio expone `listFiles` y `downloadFile`
-por separado, y el código de error `INVALID_QUERY_PARAM` está declarado a la espera de la validación
-del filtro.
+El código ya está preparado para el filtro: el repositorio expone `listFiles` y `downloadFile` por
+separado, y el código de error `INVALID_QUERY_PARAM` está declarado a la espera de su validación.
 
 Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
 con husky y commitlint, **una línea de log estructurada por request**, y un **endpoint de health**.
@@ -370,6 +404,12 @@ Se acumulan en memoria y se escriben una sola vez, al terminar la respuesta. El 
 `req` y no en el módulo, para que dos requests concurrentes no mezclen sus atributos; se descartó
 `AsyncLocalStorage` por agregar indirección sin resolver nada más.
 
+Campos que agrega `GET /files/list`:
+
+| Campo | Significado |
+|---|---|
+| `files_listed` | Archivos que devolvió el listado |
+
 Campos que agrega `GET /files/data`:
 
 | Campo | Significado |
@@ -415,9 +455,9 @@ Para levantar el API en otro puerto se cambia `port` en ese archivo; es un objet
 **Mocha + Chai**, con `supertest` para las rutas, `nock` para el API externo y `sinon` para los espías.
 
 ```bash
-npm test                 # 92 tests
-npm run test:unit        # 45
-npm run test:integration # 47
+npm test                 # 105 tests
+npm run test:unit        # 50
+npm run test:integration # 55
 ```
 
 ```
@@ -432,6 +472,7 @@ test/
 └── integration/      # supertest contra buildApp(), con el API externo stubbeado
     ├── errors.test.js           # un error no controlado sale como JSON 500 sin stack
     ├── files.data.test.js       # el contrato de GET /files/data punta a punta
+    ├── files.list.test.js       # el contrato de GET /files/list punta a punta
     ├── files.repository.test.js # el envoltorio del API externo y sus fallas
     ├── files.routes.test.js     # health, 404, CORS, buildApp
     ├── httpClient.test.js       # timeouts y traducción de errores de axios
