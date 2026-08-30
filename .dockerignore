@@ -1,5 +1,11 @@
 node_modules
 .git
+.github
 .claude
+docs
+test
 coverage
 *.log
+*.md
+Dockerfile
+docker-compose.yml
