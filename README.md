@@ -415,10 +415,51 @@ Tres de los cuatro están implementados. El alcance obligatorio está completo.
 | [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
 | [Filtro `GET /files/data?fileName=`](#filtro-opcional-filename) | **implementado** | `TASK-010` |
 | [StandardJS](#estilo-de-código) | **implementado** | `TASK-011` |
-| Docker | pendiente | `TASK-012` |
+| Docker | **implementado** | `TASK-012` |
 
 Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
 con husky y commitlint, **una línea de log estructurada por request**, y un **endpoint de health**.
+
+## Docker
+
+```bash
+docker build -t toolbox-api .
+docker run --rm -p 3000:3000 toolbox-api
+```
+
+**En Apple Silicon esto es más simple que instalar NodeJS 14.** El binario de macOS para arm64 no
+existe —de ahí todo el rodeo con Rosetta— pero **la imagen `node:14-alpine` sí tiene `linux/arm64`**,
+así que el contenedor corre nativo:
+
+```
+$ docker run --rm toolbox-api node -v && docker run --rm toolbox-api node -p process.arch
+v14.21.3
+arm64
+```
+
+La imagen instala sólo dependencias de producción y con `--ignore-scripts`, porque el hook `prepare`
+de husky no tiene repositorio git donde instalarse ni sentido dentro de una imagen. El `CMD` invoca
+`node` directamente y no `npm start`: npm quedaría entre las señales y el proceso, y el contenedor no
+se podría detener limpiamente.
+
+### Las dos apps juntas
+
+`docker-compose.yml` levanta el API y el cliente. Construye el cliente desde el directorio hermano, así
+que **los dos repos tienen que estar clonados uno al lado del otro**:
+
+```
+toolbox/
+├── toolbox-challenge-backend    <- docker compose up corre acá
+└── toolbox-challenge-frontend
+```
+
+```bash
+docker compose up --build      # API en :3000, app en http://localhost:8080
+```
+
+El cliente es un bundle estático: su JavaScript corre en el navegador, no en el contenedor, así que
+alcanza el API en `localhost:3000` de la máquina anfitriona. Por eso el API publica su puerto en vez
+de que los dos servicios se hablen por la red de Compose.
 
 ## Arquitectura
 
