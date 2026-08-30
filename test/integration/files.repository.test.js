@@ -79,7 +79,7 @@ describe('files repository', () => {
       expect(error.code).to.equal('EXTERNAL_API_UNAVAILABLE')
       expect(error.status).to.equal(502)
       expect(error.retriable).to.equal(true)
-      expect(error.message).to.be.a('string').and.not.be.empty
+      expect(error.message).to.be.a('string').and.not.equal('')
     })
 
     it('fails with a typed error when the external API rejects the token', async () => {

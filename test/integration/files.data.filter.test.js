@@ -132,7 +132,7 @@ describe('GET /files/data?fileName=', () => {
     expect(res.body).to.have.all.keys('error')
     expect(res.body.error).to.have.all.keys('code', 'message')
     expect(res.body.error.code).to.equal('INVALID_QUERY_PARAM')
-    expect(res.body.error.message).to.be.a('string').and.not.be.empty
+    expect(res.body.error.message).to.be.a('string').and.not.equal('')
   })
 
   it('responds 400 when fileName carries only whitespace', async () => {

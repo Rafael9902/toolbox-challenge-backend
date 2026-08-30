@@ -4,8 +4,9 @@ API REST que consume el API externo de Toolbox (`https://echo-serv.tbxnet.com`),
 de sus archivos CSV descartando las líneas inválidas, y lo expone como JSON en `GET /files/data`.
 
 > **Estado:** el alcance obligatorio del challenge está completo (`BACKEND - TASK-001` a `TASK-008`),
-> más los puntos opcionales `GET /files/list` (`TASK-009`) y el filtro `?fileName=` (`TASK-010`). El
-> detalle de los opcionales que faltan está en [Puntos opcionales](#puntos-opcionales).
+> más los puntos opcionales `GET /files/list` (`TASK-009`), el filtro `?fileName=` (`TASK-010`) y el
+> estilo StandardJS (`TASK-011`). El detalle del opcional que falta está en
+> [Puntos opcionales](#puntos-opcionales).
 
 **Índice:** [Requisitos](#requisitos) · [Instalación y uso](#instalación-y-uso) ·
 [Endpoints](#endpoints) · [Contra el API externo real](#contra-el-api-externo-real) ·
@@ -60,6 +61,7 @@ npm start                # levantar el API en http://localhost:3000
 npm test                 # correr toda la suite (Mocha + Chai)
 npm run test:unit        # sólo los tests unitarios
 npm run test:integration # sólo los tests de integración
+npm run lint             # verificar el estilo con StandardJS
 ```
 
 `npm start` escribe una línea y queda escuchando:
@@ -378,15 +380,41 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
 - **Todo el código fuente en inglés** —identificadores, comentarios, mensajes de error, nombres de
   tests—. La documentación queda en español.
 
+### Estilo de código
+
+El proyecto sigue [JavaScript Standard Style](https://standardjs.com/), el punto opcional `TASK-011`.
+`npm run lint` corre `standard` sobre todo el repositorio —`src/` **y** `test/`— y el CI lo reporta
+como un check propio.
+
+- **`standard@17`, no la última por inercia sino porque su rango de `engines` incluye Node 14**
+  (`^12.22.0 || ^14.17.0 || >=16.0.0`). Es el mismo rango de `eslint@8`, del que depende. Node 14.17 es
+  el piso; el `.nvmrc` del proyecto resuelve a 14.21.3, así que entra.
+- **El código ya cumplía el estándar antes de instalarlo.** `standard --fix` no reescribió una sola
+  línea: sin punto y coma, comillas simples, indentación de 2 espacios y espaciado de bloques ya eran
+  la convención del repositorio. Instalar el linter no fue un reformateo, fue hacer verificable lo que
+  ya se venía escribiendo a mano.
+- **Los globals de Mocha se declaran una sola vez**, con `"standard": { "env": ["mocha"] }` en el
+  `package.json`, en lugar de repetir `/* eslint-env mocha */` en cabecera de cada uno de los trece
+  archivos de test. `standard` no admite configuración por directorio, y ensuciar `src/` con unos
+  globals que nunca se usan es más barato que trece comentarios que hay que acordarse de copiar.
+- **Las aserciones de propiedad de Chai se escribieron como llamada.** `expect(x).to.be.a('string')
+  .and.not.be.empty` es una expresión sin efecto —`no-unused-expressions`— y además falla en silencio
+  si uno escribe mal la propiedad. Pasó a `.and.not.equal('')`: misma aserción, y si el nombre está mal
+  el test rompe en vez de pasar de largo.
+- **El `// eslint-disable-next-line no-unused-vars` sobre `errorHandler` se queda.** El `next` que no
+  se usa es lo que le da al handler la aridad de 4 parámetros con la que Express lo reconoce como
+  manejador de errores; borrarlo desarmaría el manejo de errores entero. `standard` no se queja —su
+  `no-unused-vars` va con `args: 'none'`— pero el comentario documenta la restricción para quien lea.
+
 ## Puntos opcionales
 
-Dos de los cuatro están implementados. El alcance obligatorio está completo.
+Tres de los cuatro están implementados. El alcance obligatorio está completo.
 
 | Punto opcional | Estado | Tarjeta |
 |---|---|---|
 | [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
 | [Filtro `GET /files/data?fileName=`](#filtro-opcional-filename) | **implementado** | `TASK-010` |
-| StandardJS | pendiente | `TASK-011` |
+| [StandardJS](#estilo-de-código) | **implementado** | `TASK-011` |
 | Docker | pendiente | `TASK-012` |
 
 Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
@@ -564,6 +592,7 @@ En cada push a `main` y en cada pull request, GitHub Actions corre la suite sobr
 | `unit tests on NodeJS 14` | `npm run test:unit` |
 | `integration tests on NodeJS 14` | `npm run test:integration` |
 | `npm test on NodeJS 14` | `npm test` con el entorno vaciado: `env -i "PATH=$PATH" "HOME=$HOME"` |
+| `npm run lint on NodeJS 14` | `npm run lint` — [StandardJS](#estilo-de-código) |
 
 Unit e integration reportan checks separados —y ninguno cancela al otro— para que se vea cuál falló sin
 abrir el log. El tercero es el comando exacto que corre el evaluador, sobre un entorno sin variables:

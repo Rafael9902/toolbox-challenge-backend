@@ -33,7 +33,7 @@ describe('API skeleton', () => {
 
       expect(lines).to.have.lengthOf(1)
       const [line] = lines
-      expect(line.request_id).to.be.a('string').and.not.be.empty
+      expect(line.request_id).to.be.a('string').and.not.equal('')
       expect(line.method).to.equal('GET')
       expect(line.path).to.equal('/files/health')
       expect(line.status_code).to.equal(200)
