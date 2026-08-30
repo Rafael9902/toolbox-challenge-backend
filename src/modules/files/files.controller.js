@@ -23,6 +23,29 @@ export const getFilesData = async (req, res, next) => {
 }
 
 /**
+ * GET /files/list
+ *
+ * Responds with the `{ files: [...] }` envelope fixed by the challenge
+ * statement, which mirrors the external API. The repository unwraps that
+ * envelope so the domain works with a plain array of names, so this handler is
+ * the one that puts it back on the wire.
+ *
+ * @param {Object}   req
+ * @param {Object}   res
+ * @param {Function} next
+ * @returns {Promise<void>}
+ */
+export const getFilesList = async (req, res, next) => {
+  try {
+    const { data, stats } = await filesService.getFilesList()
+    req.logger.add(stats)
+    res.status(200).json({ files: data })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * GET /files/health
  *
  * @param {Object}   req

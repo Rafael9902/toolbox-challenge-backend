@@ -89,6 +89,31 @@ export const getFilesData = async ({
 }
 
 /**
+ * Lists the files served by the external API.
+ *
+ * Nothing is downloaded or formatted here: the listing is the whole answer, so
+ * a failure of the external API has nothing partial about it and propagates as
+ * an error.
+ *
+ * @param {Object} [dependencies]  Seam for tests, mirroring `getFilesData`;
+ *        production callers pass nothing.
+ * @param {function(): Promise<string[]>} [dependencies.listFiles]
+ * @returns {Promise<ServiceResult>} `data` is the array of file names; the
+ *          controller puts it back inside the `{ files: [...] }` envelope.
+ * @throws {Error} AppError raised by the repository when the listing fails.
+ */
+export const getFilesList = async ({
+  listFiles = filesRepository.listFiles
+} = {}) => {
+  const fileNames = await listFiles()
+
+  return {
+    data: fileNames,
+    stats: { files_listed: fileNames.length }
+  }
+}
+
+/**
  * @returns {Promise<ServiceResult>}
  */
 export const getHealth = async () => ({
