@@ -45,6 +45,30 @@ const fakeRepository = (contents) => ({
 })
 
 /**
+ * Wraps {@link fakeRepository} recording every name actually downloaded, which
+ * is what tells a filter that skips downloads from one that just discards their
+ * results afterwards.
+ *
+ * @param {Object<string, (string|Error)>} contents
+ * @returns {{ downloaded: string[], repository: Object }}
+ */
+const recordingRepository = (contents) => {
+  const downloaded = []
+  const { listFiles, downloadFile } = fakeRepository(contents)
+
+  return {
+    downloaded,
+    repository: {
+      listFiles,
+      downloadFile: (fileName) => {
+        downloaded.push(fileName)
+        return downloadFile(fileName)
+      }
+    }
+  }
+}
+
+/**
  * Runs `call` and returns the error it rejects with.
  *
  * @param {function(): Promise<*>} call
@@ -175,6 +199,111 @@ describe('files service', () => {
 
       expect(data).to.have.lengthOf(3)
       expect(peak).to.equal(3)
+    })
+
+    describe('fileName filter', () => {
+      it('returns a single entry for the requested file', async () => {
+        const { data } = await filesService.getFilesData({
+          fileName: 'file2.csv',
+          ...fakeRepository({
+            'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`]),
+            'file2.csv': csv([`file2.csv,AtjW,6,${HEX}`]),
+            'file3.csv': csv([`file3.csv,Ipfw,7,${HEX}`])
+          })
+        })
+
+        expect(data).to.deep.equal([
+          { file: 'file2.csv', lines: [{ text: 'AtjW', number: 6, hex: HEX }] }
+        ])
+      })
+
+      it('downloads only the requested file, not the whole listing', async () => {
+        const { downloaded, repository } = recordingRepository({
+          'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`]),
+          'file2.csv': csv([`file2.csv,AtjW,6,${HEX}`]),
+          'file3.csv': csv([`file3.csv,Ipfw,7,${HEX}`])
+        })
+
+        await filesService.getFilesData({ fileName: 'file2.csv', ...repository })
+
+        expect(downloaded).to.deep.equal(['file2.csv'])
+      })
+
+      it('downloads every listed file when there is no filter', async () => {
+        const { downloaded, repository } = recordingRepository({
+          'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`]),
+          'file2.csv': csv([`file2.csv,AtjW,6,${HEX}`])
+        })
+
+        await filesService.getFilesData(repository)
+
+        expect(downloaded).to.deep.equal(['file1.csv', 'file2.csv'])
+      })
+
+      it('treats a null fileName as no filter at all', async () => {
+        const { data } = await filesService.getFilesData({
+          fileName: null,
+          ...fakeRepository({
+            'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`]),
+            'file2.csv': csv([`file2.csv,AtjW,6,${HEX}`])
+          })
+        })
+
+        expect(data.map(({ file }) => file)).to.deep.equal(['file1.csv', 'file2.csv'])
+      })
+
+      it('rejects with a 404 AppError when the file is not listed', async () => {
+        const { downloaded, repository } = recordingRepository({
+          'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`])
+        })
+
+        const error = await rejectionOf(
+          () => filesService.getFilesData({ fileName: 'nope.csv', ...repository })
+        )
+
+        expect(error).to.be.an('error')
+        expect(error.name).to.equal('AppError')
+        expect(error.code).to.equal(ERROR_CODES.EXTERNAL_API_FILE_NOT_FOUND)
+        expect(error.status).to.equal(404)
+        expect(error.message).to.include('nope.csv')
+        expect(downloaded).to.deep.equal([])
+      })
+
+      it('counts the whole listing but only the filtered file in the counters', async () => {
+        const { stats } = await filesService.getFilesData({
+          fileName: 'file1.csv',
+          ...fakeRepository({
+            'file1.csv': csv([
+              `file1.csv,RgTya,64075909,${HEX}`,
+              'file1.csv,missing,columns'
+            ]),
+            'file2.csv': csv([`file2.csv,AtjW,6,${HEX}`]),
+            'file3.csv': downloadError('file3.csv')
+          })
+        })
+
+        expect(stats).to.deep.equal({
+          files_listed: 3,
+          files_succeeded: 1,
+          files_failed: 0,
+          files_failed_names: [],
+          lines_valid: 1,
+          lines_discarded: 1
+        })
+      })
+
+      it('degrades to an empty array when the requested download fails', async () => {
+        const { data, stats } = await filesService.getFilesData({
+          fileName: 'file2.csv',
+          ...fakeRepository({
+            'file1.csv': csv([`file1.csv,RgTya,64075909,${HEX}`]),
+            'file2.csv': downloadError('file2.csv')
+          })
+        })
+
+        expect(data).to.deep.equal([])
+        expect(stats.files_failed_names).to.deep.equal(['file2.csv'])
+      })
     })
   })
 

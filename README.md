@@ -4,8 +4,8 @@ API REST que consume el API externo de Toolbox (`https://echo-serv.tbxnet.com`),
 de sus archivos CSV descartando las líneas inválidas, y lo expone como JSON en `GET /files/data`.
 
 > **Estado:** el alcance obligatorio del challenge está completo (`BACKEND - TASK-001` a `TASK-008`),
-> más el punto opcional `GET /files/list` (`TASK-009`). El detalle de los opcionales que faltan está
-> en [Puntos opcionales](#puntos-opcionales).
+> más los puntos opcionales `GET /files/list` (`TASK-009`) y el filtro `?fileName=` (`TASK-010`). El
+> detalle de los opcionales que faltan está en [Puntos opcionales](#puntos-opcionales).
 
 **Índice:** [Requisitos](#requisitos) · [Instalación y uso](#instalación-y-uso) ·
 [Endpoints](#endpoints) · [Contra el API externo real](#contra-el-api-externo-real) ·
@@ -78,7 +78,7 @@ Todas las respuestas, incluidas las de error, salen en `application/json`.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `GET` | `/files/data` | Lista, descarga y formatea todos los archivos del API externo |
+| `GET` | `/files/data` | Lista, descarga y formatea los archivos del API externo. Opcionalmente uno solo, con `?fileName=` |
 | `GET` | `/files/list` | Devuelve el listado de archivos tal cual lo expone el API externo |
 | `GET` | `/files/health` | Verifica que la aplicación está en pie |
 
@@ -129,6 +129,49 @@ archivo; cada línea válida, un `{ text, number, hex }`:
 
 Nada de esto se pierde: los archivos que fallaron y las líneas descartadas quedan contados en la
 línea de log de la request. Ver [Logging](#logging).
+
+#### Filtro opcional `?fileName=`
+
+```bash
+curl -s "http://localhost:3000/files/data?fileName=test2.csv"
+```
+
+```json
+[
+  {
+    "file": "test2.csv",
+    "lines": [
+      { "text": "YcCXKLtFlxm", "number": 89632563, "hex": "17cd994543cc9428c90dbf011c269ea3" }
+    ]
+  }
+]
+```
+
+**El query param es opcional y no cambia el contrato**: sin él la respuesta es exactamente la de
+arriba, todos los archivos. Con él, la respuesta es el mismo array con **un solo elemento**, y —esto
+es el punto del filtro— **se descarga sólo ese archivo**. El listado se pide igual, porque es lo que
+dice si el nombre existe; las descargas pasan de N a 1.
+
+| `?fileName=` | Respuesta |
+|---|---|
+| ausente | `200` con todos los archivos: comportamiento idéntico al de siempre |
+| un archivo del listado | `200` con un array de un elemento |
+| presente pero vacío (`?fileName=`, o sólo espacios) | `400` con `INVALID_QUERY_PARAM` |
+| repetido (`?fileName=a&fileName=b`) | `400` con `INVALID_QUERY_PARAM`: no nombra un archivo |
+| un nombre que no está en el listado | `404` con `EXTERNAL_API_FILE_NOT_FOUND` |
+| un archivo del listado cuya descarga falla | `200` con `[]`, igual que sin filtro |
+
+```bash
+curl -s "http://localhost:3000/files/data?fileName="
+{"error":{"code":"INVALID_QUERY_PARAM","message":"Query param fileName must be a non-empty file name"}}
+
+curl -s "http://localhost:3000/files/data?fileName=nope.csv"
+{"error":{"code":"EXTERNAL_API_FILE_NOT_FOUND","message":"File not found in the external API listing: nope.csv"}}
+```
+
+El nombre pedido queda en la línea de log como `filter_file_name`, así que una request filtrada se
+distingue de una completa de un vistazo. El *por qué* de cada código está en
+[Decisiones de diseño](#decisiones-de-diseño).
 
 ### `GET /files/list`
 
@@ -189,17 +232,16 @@ Con el API externo caído:
 
 | Código | HTTP | Cuándo |
 |---|---|---|
+| `INVALID_QUERY_PARAM` | `400` | `?fileName=` vino presente pero no nombra un archivo: vacío, sólo espacios, o repetido |
 | `ROUTE_NOT_FOUND` | `404` | La ruta pedida no existe |
+| `EXTERNAL_API_FILE_NOT_FOUND` | `404` | `?fileName=` pide un archivo que no está en el listado del API externo |
 | `EXTERNAL_API_UNAVAILABLE` | `502` | El listado del API externo falló, expiró el timeout, o devolvió un cuerpo que no sigue la forma `{ "files": [...] }` |
 | `INTERNAL` | `500` | Cualquier error no tipado que llegue al handler terminal. El mensaje al cliente es genérico (`Internal server error`); el real queda en el log |
 
-Dos códigos más existen en `src/shared/appError.js` y hoy no llegan al cliente, pero se documentan
-porque sí aparecen en los logs o están reservados:
-
-- **`EXTERNAL_API_FILE_NOT_FOUND`** — lo produce el cliente HTTP cuando el API externo responde `404`
-  a la descarga de un archivo. No sale al cliente: una descarga fallida es una falla parcial y se
-  reporta en `files_failed_names`, no como error de la request.
-- **`INVALID_QUERY_PARAM`** — reservado para el filtro opcional `?fileName=` (`TASK-010`), sin uso hoy.
+`EXTERNAL_API_FILE_NOT_FOUND` tiene un segundo origen que **no** llega al cliente: el cliente HTTP lo
+produce cuando el API externo responde `404` a la descarga de un archivo. Ahí es una falla parcial y
+se reporta en `files_failed_names`, no como error de la request. Ver
+[Decisiones de diseño](#decisiones-de-diseño).
 
 ## Contra el API externo real
 
@@ -267,6 +309,28 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
   descargar", que son tres cosas distintas. En las corridas reales es el caso de la mayoría de los
   archivos.
 
+### El filtro `?fileName=`
+
+- **Se filtra antes de descargar, no después.** Filtrar el resultado daría la misma respuesta gastando
+  N-1 descargas, que es justamente lo que el punto opcional viene a evitar. El service recorta el
+  listado y recién ahí descarga; contra el API externo real eso son 1 descarga en vez de 9.
+- **Un `fileName` que no está en el listado responde `404`, no `200` con `[]`.** El criterio dejaba
+  las dos abiertas. `[]` es la respuesta correcta a "este archivo no traía nada usable", y usarla
+  también para "este archivo no existe" volvería indistinguibles dos cosas que el cliente resuelve de
+  forma distinta: una es un dato, la otra es un nombre mal escrito. Es el mismo razonamiento por el
+  que un archivo sin líneas válidas se incluye con `"lines": []` en vez de omitirse.
+- **Ese `404` reutiliza `EXTERNAL_API_FILE_NOT_FOUND` en vez de estrenar un código.** Para el cliente
+  significa exactamente lo mismo que ya significaba: el API externo no sirve ese archivo. Un código
+  nuevo distinguiría *cómo* se enteró el API —por el listado o por un `404` de la descarga—, que es
+  detalle de implementación y no cambia nada de lo que el cliente puede hacer al respecto.
+- **El `fileName` presente pero vacío es `400`, no "sin filtro".** Tratarlo como ausente sería adivinar
+  la intención: quien mandó el param quiso filtrar, y no dijo por qué archivo. Lo mismo con el param
+  repetido (`?fileName=a&fileName=b`), donde Express entrega un array: tampoco nombra un archivo.
+- **El filtro no cambia el contrato de la respuesta.** Sigue siendo el mismo array pelado, con un
+  elemento; y una descarga que falla sigue degradando a `200` con `[]`, igual que sin filtro. La
+  validación del param vive en el controller, que es la capa que ve `req`; la decisión de qué se
+  descarga vive en el service, que es la que conoce el listado.
+
 ### Resiliencia
 
 - **El parser descarta, no falla.** `files.parser.js` es una función pura que nunca lanza por datos
@@ -316,17 +380,14 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
 
 ## Puntos opcionales
 
-Uno de los cuatro está implementado. El alcance obligatorio está completo.
+Dos de los cuatro están implementados. El alcance obligatorio está completo.
 
 | Punto opcional | Estado | Tarjeta |
 |---|---|---|
 | [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
-| Filtro `GET /files/data?fileName=` | pendiente | `TASK-010` |
+| [Filtro `GET /files/data?fileName=`](#filtro-opcional-filename) | **implementado** | `TASK-010` |
 | StandardJS | pendiente | `TASK-011` |
 | Docker | pendiente | `TASK-012` |
-
-El código ya está preparado para el filtro: el repositorio expone `listFiles` y `downloadFile` por
-separado, y el código de error `INVALID_QUERY_PARAM` está declarado a la espera de su validación.
 
 Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
 con husky y commitlint, **una línea de log estructurada por request**, y un **endpoint de health**.
@@ -414,6 +475,7 @@ Campos que agrega `GET /files/data`:
 
 | Campo | Significado |
 |---|---|
+| `filter_file_name` | Nombre pedido en `?fileName=`. Ausente cuando no hay filtro |
 | `files_listed` | Archivos que devolvió el listado |
 | `files_succeeded` | Archivos descargados y formateados |
 | `files_failed` | Archivos cuya descarga falló |
@@ -455,9 +517,9 @@ Para levantar el API en otro puerto se cambia `port` en ese archivo; es un objet
 **Mocha + Chai**, con `supertest` para las rutas, `nock` para el API externo y `sinon` para los espías.
 
 ```bash
-npm test                 # 105 tests
-npm run test:unit        # 50
-npm run test:integration # 55
+npm test                 # 126 tests
+npm run test:unit        # 57
+npm run test:integration # 69
 ```
 
 ```
@@ -467,11 +529,12 @@ test/
 ├── unit/             # funciones puras y piezas aisladas, sin Express
 │   ├── errors.test.js          # notFound y errorHandler contra req/res falsos
 │   ├── files.parser.test.js    # cada regla de descarte, una por test
-│   ├── files.service.test.js   # fallas parciales, paralelismo, contadores
+│   ├── files.service.test.js   # fallas parciales, paralelismo, contadores, filtro
 │   └── processErrors.test.js   # handlers de proceso sobre un target inyectado
 └── integration/      # supertest contra buildApp(), con el API externo stubbeado
     ├── errors.test.js           # un error no controlado sale como JSON 500 sin stack
     ├── files.data.test.js       # el contrato de GET /files/data punta a punta
+    ├── files.data.filter.test.js # el filtro ?fileName=: 200/400/404 y una sola descarga
     ├── files.list.test.js       # el contrato de GET /files/list punta a punta
     ├── files.repository.test.js # el envoltorio del API externo y sus fallas
     ├── files.routes.test.js     # health, 404, CORS, buildApp

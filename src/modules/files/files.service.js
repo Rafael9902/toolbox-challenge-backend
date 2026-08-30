@@ -1,3 +1,4 @@
+import { createAppError, ERROR_CODES } from '../../shared/appError.js'
 import * as filesRepository from './files.repository.js'
 import { parseFileContent } from './files.parser.js'
 
@@ -43,6 +44,41 @@ const downloadAll = async (fileNames, downloadFile) => {
 }
 
 /**
+ * Builds the error raised when the requested file is not among the listed ones.
+ *
+ * Reuses `EXTERNAL_API_FILE_NOT_FOUND` instead of adding a code: from the point
+ * of view of the client the meaning is the same one the HTTP client already
+ * gives it — the external API does not serve that file.
+ *
+ * @param {string} fileName
+ * @returns {Error} AppError with `EXTERNAL_API_FILE_NOT_FOUND`.
+ */
+const unknownFile = (fileName) => createAppError({
+  code: ERROR_CODES.EXTERNAL_API_FILE_NOT_FOUND,
+  message: `File not found in the external API listing: ${fileName}`,
+  status: 404
+})
+
+/**
+ * Narrows the listing to the requested file.
+ *
+ * Filtering happens *before* downloading on purpose: the whole point of the
+ * filter is to spend one download instead of N.
+ *
+ * @param {string[]} fileNames  Names served by the external API.
+ * @param {?string}  fileName   Requested name, null when there is no filter.
+ * @returns {string[]} The full listing, or the single requested name.
+ * @throws {Error} AppError with `EXTERNAL_API_FILE_NOT_FOUND` when the
+ *         requested name is not listed.
+ */
+const selectFiles = (fileNames, fileName) => {
+  if (fileName === null || fileName === undefined) return fileNames
+  if (!fileNames.includes(fileName)) throw unknownFile(fileName)
+
+  return [fileName]
+}
+
+/**
  * Lists, downloads and formats every file served by the external API.
  *
  * Files whose download failed are left out of `data` and reported in `stats`
@@ -53,19 +89,29 @@ const downloadAll = async (fileNames, downloadFile) => {
  * Files with no valid rows are kept with `lines: []` rather than omitted, so
  * the response says the file exists and carried nothing usable.
  *
- * @param {Object} [dependencies]  Seam for tests to drive partial failures with
- *        a fake; production callers pass nothing.
- * @param {function(): Promise<string[]>}     [dependencies.listFiles]
- * @param {function(string): Promise<string>} [dependencies.downloadFile]
- * @returns {Promise<ServiceResult>} `data` is a {@link FileData} array.
- * @throws {Error} AppError raised by the repository when the listing fails.
+ * With `fileName` the listing is still read — it is what says whether the name
+ * exists — but only that file is downloaded. Everything else stays identical,
+ * including how a failed download degrades: the answer is an empty array with
+ * the failure reported in `stats`, exactly as it would be without the filter.
+ *
+ * @param {Object} [options]  Request input plus the seam tests use to drive
+ *        partial failures with a fake; production callers pass only `fileName`.
+ * @param {?string} [options.fileName]  Requested file, already validated by the
+ *        controller. Absent or null means every listed file.
+ * @param {function(): Promise<string[]>}     [options.listFiles]
+ * @param {function(string): Promise<string>} [options.downloadFile]
+ * @returns {Promise<ServiceResult>} `data` is a {@link FileData} array; a single
+ *          element when the filter is active.
+ * @throws {Error} AppError raised by the repository when the listing fails, or
+ *         with `EXTERNAL_API_FILE_NOT_FOUND` when `fileName` is not listed.
  */
 export const getFilesData = async ({
+  fileName = null,
   listFiles = filesRepository.listFiles,
   downloadFile = filesRepository.downloadFile
 } = {}) => {
   const fileNames = await listFiles()
-  const downloads = await downloadAll(fileNames, downloadFile)
+  const downloads = await downloadAll(selectFiles(fileNames, fileName), downloadFile)
 
   const parsedFiles = downloads
     .filter(({ outcome }) => outcome.status === 'fulfilled')
