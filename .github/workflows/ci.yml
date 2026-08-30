@@ -66,3 +66,30 @@ jobs:
 
       - name: Run the whole suite with only PATH and HOME defined
         run: env -i "PATH=$PATH" "HOME=$HOME" npm test
+
+  lint:
+    name: npm run lint on NodeJS 14
+    # StandardJS is an optional point of the challenge (HU-BE-11), so it gets
+    # its own check: the style has to be verifiable, not just declared in
+    # package.json.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up NodeJS
+        uses: actions/setup-node@v4
+        with:
+          # Kept in sync with .nvmrc and package.json engines.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report the runtime actually in use
+        run: node -v && npm -v
+
+      - name: Check the JavaScript Standard Style
+        run: npm run lint

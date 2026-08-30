@@ -67,6 +67,7 @@ Varias librerías actuales exigen Node 18+. Al agregar o actualizar cualquier pa
 | `sinon` | 15.x | **16+ exige Node 18+** |
 | `supertest` | 6.x | |
 | `nock` | 13.x | |
+| `standard` | 17.x | sirve, pero su piso es **14.17** (`^12.22.0 \|\| ^14.17.0 \|\| >=16.0.0`, igual que `eslint@8`). El `.nvmrc` resuelve a 14.21.3. |
 
 `chai@4` es CommonJS. Desde ESM importalo por default y desestructurá:
 ```js
