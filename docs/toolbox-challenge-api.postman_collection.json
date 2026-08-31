@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Toolbox Challenge API",
-    "description": "The API of the Toolbox challenge, with a request per endpoint and per documented failure.\n\nThe `baseUrl` variable points at `http://localhost:3000`; change it once at collection level to aim somewhere else.\n\nEvery request carries tests, so `Run collection` verifies the contract end to end instead of only showing the responses.",
+    "description": "The API of the Toolbox challenge.\n\nEvery request carries tests, so **Run collection** verifies the contract instead of only showing responses. Each one also ships saved examples, so the shapes can be read without starting anything.\n\n`baseUrl` defaults to `http://localhost:3000`; change it once at collection level to aim somewhere else.\n\nStart the API with `npm start` or `docker compose up` in the backend repository, then run the collection.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -9,17 +9,71 @@
       "key": "baseUrl",
       "value": "http://localhost:3000",
       "type": "string"
+    },
+    {
+      "key": "fileName",
+      "value": "test3.csv",
+      "type": "string"
     }
   ],
   "item": [
     {
-      "name": "GET /files/data",
+      "name": "Get files",
       "request": {
         "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/files/data", "host": ["{{baseUrl}}"], "path": ["files", "data"] },
-        "description": "Every file, formatted. A file whose download failed is left out; a file with no valid lines is kept with an empty `lines`."
+        "header": [
+          {
+            "key": "accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/files/data",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "files",
+            "data"
+          ]
+        },
+        "description": "Lists the files of the external API, downloads them in parallel and formats their CSV, discarding malformed lines.\n\nA file whose download failed is left out and the rest are answered. A file that arrived empty, or whose every line was discarded, is kept with `lines: []`."
       },
+      "response": [
+        {
+          "name": "Every file",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/data",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "data"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "[{\"file\":\"test1.csv\",\"lines\":[]},{\"file\":\"test2.csv\",\"lines\":[{\"text\":\"vrM\",\"number\":30,\"hex\":\"e4d5a98905d75aee294e4221521eade2\"}]},{\"file\":\"test3.csv\",\"lines\":[{\"text\":\"CVudCdTeDyyDjBVvL\",\"number\":952972067,\"hex\":\"5044e6d8ce7d6dcef942255a66f77a49\"},{\"text\":\"TLYsFLCRumFNephqcwekgvQgTjTw\",\"number\":244625900,\"hex\":\"9363e6a7149dc03ced7df691f18b8510\"},{\"text\":\"HxzMbbQUEJQkVkUvSpCEnkmd\",\"number\":752404871,\"hex\":\"b686de2c972f2173f110da2164b61701\"}]},{\"file\":\"test18.csv\",\"lines\":[]},{\"file\":\"test6.csv\",\"lines\":[]},{\"file\":\"test9.csv\",\"lines\":[{\"text\":\"cZxiiOjMQXhwFK\",\"number\":1758717,\"hex\":\"8ea13d9d3609f21a4e3823c573aea8a8\"},{\"text\":\"wIOcAsWdHpMDweDLuQhMYDWVMmB\",\"number\":9843577,\"hex\":\"42013e29f8e60619cca6cbf5177b00a3\"},{\"text\":\"OkkyHxrwGPZUzlQL\",\"number\":72468,\"hex\":\"79242c65dcc6457141467c05988edb2d\"},{\"text\":\"u\",\"number\":44235225,\"hex\":\"e3e9aae3efac79f2e66d272fb4f89713\"},{\"text\":\"aUxIekbdNMoicHfGs\",\"number\":9464930035,\"hex\":\"402d3b3e80f240bac3a1b5c588e23306\"},{\"text\":\"DlvWnZOXgnbJRSckSUqjArvejky\",\"number\":33616,\"hex\":\"2d1395827afb2cc1041d32f9f3864ce8\"},{\"text\":\"Y\",\"number\":266,\"hex\":\"469c40a6b86381ef65dc29ccfe8e9677\"},{\"text\":\"cm\",\"number\":88970829,\"hex\":\"caeaac4b7955941f119bb863d31e8afb\"},{\"text\":\"KjZgiE\",\"number\":674229380,\"hex\":\"4bed5248630ba61d710d3d58998f6c8d\"},{\"text\":\"LiHPLocYPoew\",\"number\":18913343,\"hex\":\"5198ac537967c00116a425c15d60b970\"}]},{\"file\":\"test15.csv\",\"lines\":[]}]"
+        }
+      ],
       "event": [
         {
           "listen": "test",
@@ -48,25 +102,163 @@
               "    pm.expect(line.text).to.be.a('string')",
               "    pm.expect(line.hex).to.match(/^[0-9a-f]{32}$/i)",
               "  })",
-              "})"
+              "})",
+              "",
+              "// Hands the next request a file name that exists right now.",
+              "const withLines = pm.response.json().find((entry) => entry.lines.length > 0)",
+              "if (withLines) pm.collectionVariables.set('fileName', withLines.file)"
             ]
           }
         }
       ]
     },
     {
-      "name": "GET /files/data?fileName=",
+      "name": "Get files by file name",
       "request": {
         "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
+        "header": [
+          {
+            "key": "accept",
+            "value": "application/json"
+          }
+        ],
         "url": {
-          "raw": "{{baseUrl}}/files/data?fileName=test3.csv",
-          "host": ["{{baseUrl}}"],
-          "path": ["files", "data"],
-          "query": [{ "key": "fileName", "value": "test3.csv" }]
+          "raw": "{{baseUrl}}/files/data?fileName={{fileName}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "files",
+            "data"
+          ],
+          "query": [
+            {
+              "key": "fileName",
+              "value": "{{fileName}}"
+            }
+          ]
         },
-        "description": "Narrows the answer to one file. The narrowing happens on the API: only that file is downloaded from the external service."
+        "description": "Narrows the answer to a single file.\n\nThe narrowing happens on the API, not here: only that file is downloaded from the external service.\n\nThe `fileName` variable is set by **Get files** to a name that exists in the current run, so the collection works whatever the external API is serving today."
       },
+      "response": [
+        {
+          "name": "One file",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/data?fileName=test3.csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "data"
+              ],
+              "query": [
+                {
+                  "key": "fileName",
+                  "value": "test3.csv"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "[{\"file\":\"test3.csv\",\"lines\":[{\"text\":\"CVudCdTeDyyDjBVvL\",\"number\":952972067,\"hex\":\"5044e6d8ce7d6dcef942255a66f77a49\"},{\"text\":\"TLYsFLCRumFNephqcwekgvQgTjTw\",\"number\":244625900,\"hex\":\"9363e6a7149dc03ced7df691f18b8510\"},{\"text\":\"HxzMbbQUEJQkVkUvSpCEnkmd\",\"number\":752404871,\"hex\":\"b686de2c972f2173f110da2164b61701\"}]}]"
+        },
+        {
+          "name": "Empty file name",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/data?fileName=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "data"
+              ],
+              "query": [
+                {
+                  "key": "fileName",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "{\"error\":{\"code\":\"INVALID_QUERY_PARAM\",\"message\":\"Query param fileName must be a non-empty file name\"}}"
+        },
+        {
+          "name": "Unknown file name",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/data?fileName=nope.csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "data"
+              ],
+              "query": [
+                {
+                  "key": "fileName",
+                  "value": "nope.csv"
+                }
+              ]
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "{\"error\":{\"code\":\"EXTERNAL_API_FILE_NOT_FOUND\",\"message\":\"File not found in the external API listing: nope.csv\"}}"
+        }
+      ],
       "event": [
         {
           "listen": "test",
@@ -78,7 +270,14 @@
               "pm.test('answers exactly one file, the requested one', () => {",
               "  const body = pm.response.json()",
               "  pm.expect(body).to.have.lengthOf(1)",
-              "  pm.expect(body[0].file).to.eql('test3.csv')",
+              "  pm.expect(body[0].file).to.eql(pm.collectionVariables.get('fileName'))",
+              "})",
+              "",
+              "pm.test('the file carries the lines that survived the parsing', () => {",
+              "  pm.response.json()[0].lines.forEach((line) => {",
+              "    pm.expect(line.number).to.be.a('number')",
+              "    pm.expect(line.hex).to.match(/^[0-9a-f]{32}$/i)",
+              "  })",
               "})"
             ]
           }
@@ -86,69 +285,62 @@
       ]
     },
     {
-      "name": "GET /files/data?fileName= (empty)",
+      "name": "Get file names",
       "request": {
         "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
+        "header": [
+          {
+            "key": "accept",
+            "value": "application/json"
+          }
+        ],
         "url": {
-          "raw": "{{baseUrl}}/files/data?fileName=",
-          "host": ["{{baseUrl}}"],
-          "path": ["files", "data"],
-          "query": [{ "key": "fileName", "value": "" }]
+          "raw": "{{baseUrl}}/files/list",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "files",
+            "list"
+          ]
         },
-        "description": "A param that is present but names no file is a client error: the caller meant to filter and could not say by what."
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('answers 400 with a typed error', () => {",
-              "  pm.response.to.have.status(400)",
-              "  pm.expect(pm.response.json().error.code).to.eql('INVALID_QUERY_PARAM')",
-              "})"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "GET /files/data?fileName= (unknown file)",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
-        "url": {
-          "raw": "{{baseUrl}}/files/data?fileName=nope.csv",
-          "host": ["{{baseUrl}}"],
-          "path": ["files", "data"],
-          "query": [{ "key": "fileName", "value": "nope.csv" }]
-        },
-        "description": "A name absent from the listing answers 404 rather than an empty array: an empty array already means the file carried nothing usable."
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('answers 404 with a typed error', () => {",
-              "  pm.response.to.have.status(404)",
-              "  pm.expect(pm.response.json().error.code).to.eql('EXTERNAL_API_FILE_NOT_FOUND')",
-              "})"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "GET /files/list",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/files/list", "host": ["{{baseUrl}}"], "path": ["files", "list"] },
         "description": "Mirrors the listing of the external API, envelope included, as the statement asks. Downloads nothing."
       },
+      "response": [
+        {
+          "name": "The listing",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "list"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "{\"files\":[\"test1.csv\",\"test2.csv\",\"test3.csv\",\"test18.csv\",\"test4.csv\",\"test5.csv\",\"test6.csv\",\"test9.csv\",\"test15.csv\"]}"
+        }
+      ],
       "event": [
         {
           "listen": "test",
@@ -169,13 +361,62 @@
       ]
     },
     {
-      "name": "GET /files/health",
+      "name": "Get service health",
       "request": {
         "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/files/health", "host": ["{{baseUrl}}"], "path": ["files", "health"] },
+        "header": [
+          {
+            "key": "accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/files/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "files",
+            "health"
+          ]
+        },
         "description": "Liveness of the application. Answers without reaching the external API."
       },
+      "response": [
+        {
+          "name": "Up",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "files",
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "{\"status\":\"ok\"}"
+        }
+      ],
       "event": [
         {
           "listen": "test",
@@ -192,13 +433,60 @@
       ]
     },
     {
-      "name": "GET /unknown (404)",
+      "name": "Get an unknown route",
       "request": {
         "method": "GET",
-        "header": [{ "key": "accept", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/unknown", "host": ["{{baseUrl}}"], "path": ["unknown"] },
+        "header": [
+          {
+            "key": "accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/unknown",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "unknown"
+          ]
+        },
         "description": "An unmatched route answers JSON, never the HTML page Express serves by default."
       },
+      "response": [
+        {
+          "name": "Route not found",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/unknown",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "unknown"
+              ]
+            }
+          },
+          "status": "Not Found",
+          "code": 404,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+            }
+          ],
+          "cookie": [],
+          "body": "{\"error\":{\"code\":\"ROUTE_NOT_FOUND\",\"message\":\"Route not found: GET /unknown\"}}"
+        }
+      ],
       "event": [
         {
           "listen": "test",
