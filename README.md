@@ -3,33 +3,44 @@
 API REST que consume el API externo de Toolbox (`https://echo-serv.tbxnet.com`), formatea el contenido
 de sus archivos CSV descartando las líneas inválidas, y lo expone como JSON en `GET /files/data`.
 
-> **Estado:** el alcance obligatorio del challenge está completo (`BACKEND - TASK-001` a `TASK-008`),
-> más los puntos opcionales `GET /files/list` (`TASK-009`), el filtro `?fileName=` (`TASK-010`) y el
-> estilo StandardJS (`TASK-011`). El detalle del opcional que falta está en
-> [Puntos opcionales](#puntos-opcionales).
-
-**Índice:** [Requisitos](#requisitos) · [Instalación y uso](#instalación-y-uso) ·
-[Endpoints](#endpoints) · [Contra el API externo real](#contra-el-api-externo-real) ·
-[Decisiones de diseño](#decisiones-de-diseño) · [Puntos opcionales](#puntos-opcionales) ·
-[Arquitectura](#arquitectura) · [Logging](#logging) · [Configuración](#configuración) ·
-[Tests](#tests) · [CI y git hooks](#ci-y-git-hooks)
+> **Estado:** alcance obligatorio y opcional completos (`BACKEND - TASK-001` a `TASK-012`).
 
 ---
 
-## Requisitos
+## Cómo ejecutarlo
 
-| Ítem | Valor |
-|---|---|
-| Runtime | **NodeJS 14** (probado en `v14.21.3`, npm `6.14.18`) |
-| Dependencias globales | ninguna — todo sale de `package.json` |
-| Variables de entorno | ninguna, ni obligatoria ni opcional |
-| Puerto por defecto | **3000** |
+### Con Docker — la forma recomendada
 
-El repo incluye `.nvmrc`, así que alcanza con:
+No hace falta instalar NodeJS, y **en Apple Silicon es bastante más simple**: NodeJS 14 no tiene
+binario para macOS arm64, pero la imagen `node:14-alpine` sí publica `linux/arm64`, así que el
+contenedor corre el runtime que exige el enunciado sin Rosetta.
 
 ```bash
-nvm use     # lee .nvmrc -> 14
-node -v     # debe imprimir v14.21.3
+docker compose up --build          # http://localhost:3000
+```
+
+O sin Compose:
+
+```bash
+docker build -t toolbox-api .
+docker run --rm -p 3000:3000 toolbox-api
+```
+
+Para levantar también el cliente, su repo trae su propio compose; van en dos terminales:
+
+```bash
+cd toolbox-challenge-backend  && docker compose up --build   # API en :3000
+cd toolbox-challenge-frontend && docker compose up --build   # app en :8080
+```
+
+### Sin Docker
+
+Requiere **NodeJS 14** (probado en `v14.21.3`, npm `6.14.18`). El repo trae `.nvmrc`:
+
+```bash
+nvm use          # -> 14
+npm install
+npm start        # http://localhost:3000
 ```
 
 ### Apple Silicon (macOS con chip M1/M2/M3): leer antes de instalar
@@ -53,26 +64,60 @@ en el runtime que exige el challenge.
 
 Si Rosetta 2 no está instalado: `softwareupdate --install-rosetta`.
 
-## Instalación y uso
+| | |
+|---|---|
+| Puerto | **3000** |
+| Variables de entorno | ninguna, ni obligatoria ni opcional |
+| Dependencias globales | ninguna |
 
-```bash
-npm install              # instalar dependencias
-npm start                # levantar el API en http://localhost:3000
-npm test                 # correr toda la suite (Mocha + Chai)
-npm run test:unit        # sólo los tests unitarios
-npm run test:integration # sólo los tests de integración
-npm run lint             # verificar el estilo con StandardJS
-```
+## Qué vas a ver
 
-`npm start` escribe una línea y queda escuchando:
+`npm start` —o `docker compose up`— escribe una línea y queda escuchando:
 
 ```json
 {"level":30,"time":1787956126291,"service":"toolbox-challenge-backend","version":"1.0.0","event":"server_started","port":3000}
 ```
 
-Un clon limpio arranca con `npm install && npm start`: **no hay nada que configurar**. Todos los
-valores —incluidos la URL y el token del API externo— viven en `src/shared/config.js`; ver
-[Configuración](#configuración).
+Y el endpoint principal responde un array de archivos con sus líneas ya formateadas:
+
+```bash
+curl -s http://localhost:3000/files/data
+```
+
+```json
+[
+  { "file": "test1.csv", "lines": [] },
+  { "file": "test3.csv", "lines": [
+      { "text": "g", "number": 101382507, "hex": "65badd1f29e6235199261cd3026a97f5" }
+  ]}
+]
+```
+
+**Van a aparecer archivos con `lines: []`, y está bien:** el API externo sirve datos sucios a propósito
+y la mayoría de las líneas se descartan. El desglose está en
+[Contra el API externo real](#contra-el-api-externo-real).
+
+Cada request emite **una sola línea de log** con todo su contexto — cuántos archivos fallaron, cuáles,
+y cuántas líneas se descartaron. Ver [Logging](#logging).
+
+## Enlaces
+
+| | |
+|---|---|
+| **Documentación del API (Postman)** | https://documenter.getpostman.com/view/27146414/2sBYAuSrSX |
+| Board de Trello | https://trello.com/b/ZN8vBfxd |
+| Repo del cliente | https://github.com/Rafael9902/toolbox-challenge-frontend |
+| Historias de usuario | [`docs/user-stories.md`](docs/user-stories.md) |
+
+## Comandos
+
+```bash
+npm start                # levantar el API en http://localhost:3000
+npm test                 # toda la suite (Mocha + Chai)
+npm run test:unit        # sólo los tests unitarios
+npm run test:integration # sólo los tests de integración
+npm run lint             # JavaScript Standard Style
+```
 
 ## Endpoints
 
@@ -245,45 +290,6 @@ produce cuando el API externo responde `404` a la descarga de un archivo. Ahí e
 se reporta en `files_failed_names`, no como error de la request. Ver
 [Decisiones de diseño](#decisiones-de-diseño).
 
-## Documentación del API
-
-| Archivo | Qué es |
-|---|---|
-| [`docs/openapi.yaml`](docs/openapi.yaml) | Especificación **OpenAPI 3.0.3**: los tres endpoints, sus parámetros, y cada respuesta de éxito y de error con ejemplos |
-| [`docs/toolbox-challenge-api.postman_collection.json`](docs/toolbox-challenge-api.postman_collection.json) | Colección **Postman v2.1** con una request por endpoint y por falla documentada |
-
-Para ver la spec sin instalar nada, pegá el contenido de `openapi.yaml` en
-[editor.swagger.io](https://editor.swagger.io/).
-
-La colección de Postman **no es sólo una lista de requests**: cada una lleva sus tests, así que
-`Run collection` verifica el contrato en vez de sólo mostrar respuestas. Y cada una trae **ejemplos
-guardados** —incluidas las variantes de error— para poder leer las formas sin levantar nada. Con el API
-corriendo:
-
-```bash
-npx newman run docs/toolbox-challenge-api.postman_collection.json
-# 5 requests, 12 assertions, 0 failures
-```
-
-| Request | Ejemplos |
-|---|---|
-| Get files | Every file |
-| Get files by file name | One file · Empty file name (400) · Unknown file name (404) |
-| Get file names | The listing |
-| Get service health | Up |
-| Get an unknown route | Route not found (404) |
-
-`Get files` deja en una variable el nombre de un archivo que **hoy** tiene líneas, y `Get files by file
-name` la usa: así la colección corre entera aunque el API externo cambie sus datos.
-
-Comprueba lo que el enunciado fija y es fácil de romper sin darse cuenta: que `/files/data` devuelva un
-array **pelado**, que cada elemento tenga **sólo** `file` y `lines`, que `number` viaje como número JSON
-y no como texto, que `/files/list` conserve el envoltorio `{ files }`, y que una ruta inexistente
-responda JSON y no la página HTML de Express.
-
-> `newman` corre en NodeJS 16 o superior; el API sigue corriendo en 14. Son procesos distintos, así que
-> no hay conflicto: levantá el API con `nvm use` y corré `newman` desde otra terminal.
-
 ## Contra el API externo real
 
 Los datos que sirve el API externo están sucios a propósito, y es justamente lo que este API tiene que
@@ -322,184 +328,47 @@ Un `200` con 7 archivos no cuenta esa historia; esta línea sí. Es el motivo de
 
 > El API externo puede cambiar sus datos: los números de arriba describen esa corrida, no un contrato.
 
-## Decisiones de diseño
+## Documentación del API
 
-### Formato y validación de los datos
+| Archivo | Qué es |
+|---|---|
+| [`docs/openapi.yaml`](docs/openapi.yaml) | Especificación **OpenAPI 3.0.3**: los tres endpoints, sus parámetros, y cada respuesta de éxito y de error con ejemplos |
+| [`docs/toolbox-challenge-api.postman_collection.json`](docs/toolbox-challenge-api.postman_collection.json) | Colección **Postman v2.1** con una request por endpoint y por falla documentada |
 
-- **Una línea es válida cuando tiene exactamente cuatro columnas no vacías**, la tercera numérica y la
-  cuarta de 32 caracteres hexadecimales. Cualquier otra cosa se descarta.
-- **`hex` se valida con `/^[0-9a-f]{32}$/i`.** El enunciado pide un "hexadecimal de 32 dígitos", así
-  que se validan las 32 posiciones en vez de aceptar cualquier string; las mayúsculas se aceptan. En
-  la corrida medida esto descartó 5 filas con `hex` de 30 caracteres, que de otro modo pasarían.
-- **`number` se valida con `Number.isFinite(Number(x))`.** Acepta cualquier literal numérico de
-  JavaScript, incluidos `1e5` o `-3.5`. Es la lectura literal de "numérico". Si la expectativa fuera
-  sólo enteros decimales, es cambiar esa línea de `files.parser.js` por un `/^\d+$/`.
-- **También se descartan las líneas con *más* de cuatro columnas.** La historia de usuario sólo hablaba
-  de "menos de 4"; ésta es la única regla que va por encima de los criterios. El razonamiento: el CSV
-  no usa comillas, así que una coma de más no puede ser un campo con coma adentro — es dato corrupto,
-  y admitirlo significaría elegir arbitrariamente cuáles cuatro columnas son las buenas. Descarta 3
-  filas reales.
-- **La cabecera se descarta por posición**, no comparando su texto. Una cabecera inesperada contaría
-  como línea inválida e inflaría `lines_discarded`, que es una métrica de datos corruptos.
-- **Las líneas en blanco se ignoran y no se cuentan como descartadas**, incluida la final. Es lo que
-  evita que un salto de línea al cierre o los finales `\r\n` inventen descartes.
-- **El campo `file` sale del nombre del archivo procesado**, no de la primera columna del CSV: es el
-  nombre con el que se pidió el archivo y el único que el cliente puede correlacionar con el listado.
-- **Un archivo sin líneas válidas se incluye con `"lines": []`**, no se omite. Omitirlo haría
-  indistinguible "el archivo existe pero no traía nada usable" de "el archivo no existe" o "no se pudo
-  descargar", que son tres cosas distintas. En las corridas reales es el caso de la mayoría de los
-  archivos.
+La colección también está **publicada online**, sin necesidad de importar nada:
+https://documenter.getpostman.com/view/27146414/2sBYAuSrSX
 
-### El filtro `?fileName=`
+Para ver la spec de OpenAPI sin instalar nada, pegá el contenido de `openapi.yaml` en
+[editor.swagger.io](https://editor.swagger.io/).
 
-- **Se filtra antes de descargar, no después.** Filtrar el resultado daría la misma respuesta gastando
-  N-1 descargas, que es justamente lo que el punto opcional viene a evitar. El service recorta el
-  listado y recién ahí descarga; contra el API externo real eso son 1 descarga en vez de 9.
-- **Un `fileName` que no está en el listado responde `404`, no `200` con `[]`.** El criterio dejaba
-  las dos abiertas. `[]` es la respuesta correcta a "este archivo no traía nada usable", y usarla
-  también para "este archivo no existe" volvería indistinguibles dos cosas que el cliente resuelve de
-  forma distinta: una es un dato, la otra es un nombre mal escrito. Es el mismo razonamiento por el
-  que un archivo sin líneas válidas se incluye con `"lines": []` en vez de omitirse.
-- **Ese `404` reutiliza `EXTERNAL_API_FILE_NOT_FOUND` en vez de estrenar un código.** Para el cliente
-  significa exactamente lo mismo que ya significaba: el API externo no sirve ese archivo. Un código
-  nuevo distinguiría *cómo* se enteró el API —por el listado o por un `404` de la descarga—, que es
-  detalle de implementación y no cambia nada de lo que el cliente puede hacer al respecto.
-- **El `fileName` presente pero vacío es `400`, no "sin filtro".** Tratarlo como ausente sería adivinar
-  la intención: quien mandó el param quiso filtrar, y no dijo por qué archivo. Lo mismo con el param
-  repetido (`?fileName=a&fileName=b`), donde Express entrega un array: tampoco nombra un archivo.
-- **El filtro no cambia el contrato de la respuesta.** Sigue siendo el mismo array pelado, con un
-  elemento; y una descarga que falla sigue degradando a `200` con `[]`, igual que sin filtro. La
-  validación del param vive en el controller, que es la capa que ve `req`; la decisión de qué se
-  descarga vive en el service, que es la que conoce el listado.
-
-### Resiliencia
-
-- **El parser descarta, no falla.** `files.parser.js` es una función pura que nunca lanza por datos
-  corruptos: cuenta las líneas inválidas en `discarded` y el controller las publica como
-  `lines_discarded`. Un archivo con basura no rompe la respuesta de los demás.
-- **Las descargas van en paralelo con `Promise.allSettled`**, que es lo que hace que una falla parcial
-  sea parcial: una descarga rechazada no cancela a las otras, y los resultados conservan el orden del
-  listado, así que cada fallo se puede reasociar con su archivo.
-- **La falla del listado sí propaga.** No tiene nada de parcial: sin listado no hay nada que devolver,
-  así que sale un `502` en vez de un `200` con `[]`, que mentiría diciendo que el API externo no tiene
-  archivos.
-- **Un `uncaughtException` no reinicia el proceso: se loguea y el servidor sigue en pie.** Es lo
-  contrario de la práctica habitual —loguear y salir, para que un supervisor levante un proceso limpio—
-  y es deliberado. Acá `npm start` es todo el deploy: no hay supervisor que reinicie nada, así que
-  salir deja al evaluador sin API. Y el riesgo que justifica salir, un proceso con estado corrupto, no
-  aplica: este API es un proxy de sólo lectura que no guarda nada entre requests, así que la siguiente
-  se sirve igual de bien. En un deploy con supervisor la decisión se revierte.
-
-### HTTP
-
-- **Las dos formas de respuesta las fija el enunciado, y ninguna se toca.** `/files/data` va como array
-  pelado y `/files/list` con el envoltorio `{ "files": [...] }` del API externo. Son contrarias entre sí
-  y así se dejan: uniformarlas —o agregarles un envelope `{ meta, data }`— rompería lo único que el
-  evaluador verifica copiando el curl del enunciado. La traducción vive en los bordes: el repositorio
-  desenvuelve el listado para el dominio, y el controller de `/files/list` lo vuelve a envolver al salir.
-- **CORS: se responde `Access-Control-Allow-Origin: *`.** El frontend se sirve desde otro puerto, así
-  que sin ese header el browser bloquea la respuesta. Es el **único** header CORS que se manda: el API
-  es de sólo lectura, no recibe credenciales ni headers custom, así que sus `GET` son *simple requests*
-  y nunca disparan un preflight `OPTIONS`. Agregar `Allow-Methods` o `Allow-Headers` sería ruido.
-- **`notFound` y `errorHandler` viven en el mismo archivo.** No pueden ser la misma función —Express
-  los distingue por aridad, 3 parámetros contra 4— pero son las dos puntas de la misma cadena.
-- **Los errores son una factory sobre `Error`**, no subclases: conserva el stack trace sin introducir
-  clases.
-- **El stack trace nunca sale al cliente**, y un error no tipado se reporta como `Internal server
-  error`. El detalle real queda en la línea de log.
-
-### Plataforma
-
-- **ESM nativo** (`"type": "module"`) en vez de CommonJS. Obliga a extensiones `.js` explícitas en los
-  imports relativos, pero es JavaScript moderno sin transpilar — y el challenge prohíbe Babel.
-- **Sin variables de entorno.** El challenge las prohíbe como requisito; hardcodear en
-  `src/shared/config.js` evita además el parseo de strings y los defaults duplicados.
-- **Versiones fijadas por Node 14**: `pino@8` (la 9 exige Node 18+), `chai@4` (la 5 es ESM-only y exige
-  Node 18+), `mocha@10`, `sinon@15`. El detalle está en `.claude/skills/node14-constraints/`.
-- **Todo el código fuente en inglés** —identificadores, comentarios, mensajes de error, nombres de
-  tests—. La documentación queda en español.
-
-### Estilo de código
-
-El proyecto sigue [JavaScript Standard Style](https://standardjs.com/), el punto opcional `TASK-011`.
-`npm run lint` corre `standard` sobre todo el repositorio —`src/` **y** `test/`— y el CI lo reporta
-como un check propio.
-
-- **`standard@17`, no la última por inercia sino porque su rango de `engines` incluye Node 14**
-  (`^12.22.0 || ^14.17.0 || >=16.0.0`). Es el mismo rango de `eslint@8`, del que depende. Node 14.17 es
-  el piso; el `.nvmrc` del proyecto resuelve a 14.21.3, así que entra.
-- **El código ya cumplía el estándar antes de instalarlo.** `standard --fix` no reescribió una sola
-  línea: sin punto y coma, comillas simples, indentación de 2 espacios y espaciado de bloques ya eran
-  la convención del repositorio. Instalar el linter no fue un reformateo, fue hacer verificable lo que
-  ya se venía escribiendo a mano.
-- **Los globals de Mocha se declaran una sola vez**, con `"standard": { "env": ["mocha"] }` en el
-  `package.json`, en lugar de repetir `/* eslint-env mocha */` en cabecera de cada uno de los trece
-  archivos de test. `standard` no admite configuración por directorio, y ensuciar `src/` con unos
-  globals que nunca se usan es más barato que trece comentarios que hay que acordarse de copiar.
-- **Las aserciones de propiedad de Chai se escribieron como llamada.** `expect(x).to.be.a('string')
-  .and.not.be.empty` es una expresión sin efecto —`no-unused-expressions`— y además falla en silencio
-  si uno escribe mal la propiedad. Pasó a `.and.not.equal('')`: misma aserción, y si el nombre está mal
-  el test rompe en vez de pasar de largo.
-- **El `// eslint-disable-next-line no-unused-vars` sobre `errorHandler` se queda.** El `next` que no
-  se usa es lo que le da al handler la aridad de 4 parámetros con la que Express lo reconoce como
-  manejador de errores; borrarlo desarmaría el manejo de errores entero. `standard` no se queja —su
-  `no-unused-vars` va con `args: 'none'`— pero el comentario documenta la restricción para quien lea.
-
-## Puntos opcionales
-
-Tres de los cuatro están implementados. El alcance obligatorio está completo.
-
-| Punto opcional | Estado | Tarjeta |
-|---|---|---|
-| [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
-| [Filtro `GET /files/data?fileName=`](#filtro-opcional-filename) | **implementado** | `TASK-010` |
-| [StandardJS](#estilo-de-código) | **implementado** | `TASK-011` |
-| Docker | **implementado** | `TASK-012` |
-
-Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
-con husky y commitlint, **una línea de log estructurada por request**, y un **endpoint de health**.
-
-## Docker
+La colección de Postman **no es sólo una lista de requests**: cada una lleva sus tests, así que
+`Run collection` verifica el contrato en vez de sólo mostrar respuestas. Y cada una trae **ejemplos
+guardados** —incluidas las variantes de error— para poder leer las formas sin levantar nada. Con el API
+corriendo:
 
 ```bash
-docker build -t toolbox-api .
-docker run --rm -p 3000:3000 toolbox-api
+npx newman run docs/toolbox-challenge-api.postman_collection.json
+# 5 requests, 12 assertions, 0 failures
 ```
 
-**En Apple Silicon esto es más simple que instalar NodeJS 14.** El binario de macOS para arm64 no
-existe —de ahí todo el rodeo con Rosetta— pero **la imagen `node:14-alpine` sí tiene `linux/arm64`**,
-así que el contenedor corre nativo:
+| Request | Ejemplos |
+|---|---|
+| Get files | Every file |
+| Get files by file name | One file · Empty file name (400) · Unknown file name (404) |
+| Get file names | The listing |
+| Get service health | Up |
+| Get an unknown route | Route not found (404) |
 
-```
-$ docker run --rm toolbox-api node -v && docker run --rm toolbox-api node -p process.arch
-v14.21.3
-arm64
-```
+`Get files` deja en una variable el nombre de un archivo que **hoy** tiene líneas, y `Get files by file
+name` la usa: así la colección corre entera aunque el API externo cambie sus datos.
 
-La imagen instala sólo dependencias de producción y con `--ignore-scripts`, porque el hook `prepare`
-de husky no tiene repositorio git donde instalarse ni sentido dentro de una imagen. El `CMD` invoca
-`node` directamente y no `npm start`: npm quedaría entre las señales y el proceso, y el contenedor no
-se podría detener limpiamente.
+Comprueba lo que el enunciado fija y es fácil de romper sin darse cuenta: que `/files/data` devuelva un
+array **pelado**, que cada elemento tenga **sólo** `file` y `lines`, que `number` viaje como número JSON
+y no como texto, que `/files/list` conserve el envoltorio `{ files }`, y que una ruta inexistente
+responda JSON y no la página HTML de Express.
 
-O con Compose:
-
-```bash
-docker compose up --build      # API en http://localhost:3000
-```
-
-### Las dos apps juntas
-
-**Cada repo tiene su propio `docker-compose.yml` con un solo servicio**, así que ninguno depende de
-dónde esté clonado el otro. Para levantar todo, un `docker compose up` en cada uno, en dos terminales:
-
-```bash
-cd toolbox-challenge-backend  && docker compose up --build   # API en :3000
-cd toolbox-challenge-frontend && docker compose up --build   # app en :8080
-```
-
-El cliente es un bundle estático: su JavaScript corre en el navegador, no en el contenedor, así que
-alcanza el API en `localhost:3000` de la máquina anfitriona. Por eso alcanza con que cada servicio
-publique su puerto y no hace falta una red compartida de Compose.
+> `newman` corre en NodeJS 16 o superior; el API sigue corriendo en 14. Son procesos distintos, así que
+> no hay conflicto: levantá el API con `nvm use` y corré `newman` desde otra terminal.
 
 ## Arquitectura
 
@@ -699,6 +568,185 @@ docs: document the response contracts
 
 Types válidos: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`,
 `test`. Para saltear los hooks en una emergencia: `git commit --no-verify`.
+
+## Puntos opcionales
+
+Tres de los cuatro están implementados. El alcance obligatorio está completo.
+
+| Punto opcional | Estado | Tarjeta |
+|---|---|---|
+| [`GET /files/list`](#get-fileslist) | **implementado** | `TASK-009` |
+| [Filtro `GET /files/data?fileName=`](#filtro-opcional-filename) | **implementado** | `TASK-010` |
+| [StandardJS](#estilo-de-código) | **implementado** | `TASK-011` |
+| Docker | **implementado** | `TASK-012` |
+
+Fuera de la lista del enunciado, sí se agregaron: **CI en GitHub Actions sobre NodeJS 14**, **git hooks**
+con husky y commitlint, **una línea de log estructurada por request**, y un **endpoint de health**.
+
+## Docker: cómo está hecha la imagen
+
+```bash
+docker build -t toolbox-api .
+docker run --rm -p 3000:3000 toolbox-api
+```
+
+**En Apple Silicon esto es más simple que instalar NodeJS 14.** El binario de macOS para arm64 no
+existe —de ahí todo el rodeo con Rosetta— pero **la imagen `node:14-alpine` sí tiene `linux/arm64`**,
+así que el contenedor corre nativo:
+
+```
+$ docker run --rm toolbox-api node -v && docker run --rm toolbox-api node -p process.arch
+v14.21.3
+arm64
+```
+
+La imagen instala sólo dependencias de producción y con `--ignore-scripts`, porque el hook `prepare`
+de husky no tiene repositorio git donde instalarse ni sentido dentro de una imagen. El `CMD` invoca
+`node` directamente y no `npm start`: npm quedaría entre las señales y el proceso, y el contenedor no
+se podría detener limpiamente.
+
+O con Compose:
+
+```bash
+docker compose up --build      # API en http://localhost:3000
+```
+
+### Las dos apps juntas
+
+**Cada repo tiene su propio `docker-compose.yml` con un solo servicio**, así que ninguno depende de
+dónde esté clonado el otro. Para levantar todo, un `docker compose up` en cada uno, en dos terminales:
+
+```bash
+cd toolbox-challenge-backend  && docker compose up --build   # API en :3000
+cd toolbox-challenge-frontend && docker compose up --build   # app en :8080
+```
+
+El cliente es un bundle estático: su JavaScript corre en el navegador, no en el contenedor, así que
+alcanza el API en `localhost:3000` de la máquina anfitriona. Por eso alcanza con que cada servicio
+publique su puerto y no hace falta una red compartida de Compose.
+
+## Decisiones de diseño
+
+### Formato y validación de los datos
+
+- **Una línea es válida cuando tiene exactamente cuatro columnas no vacías**, la tercera numérica y la
+  cuarta de 32 caracteres hexadecimales. Cualquier otra cosa se descarta.
+- **`hex` se valida con `/^[0-9a-f]{32}$/i`.** El enunciado pide un "hexadecimal de 32 dígitos", así
+  que se validan las 32 posiciones en vez de aceptar cualquier string; las mayúsculas se aceptan. En
+  la corrida medida esto descartó 5 filas con `hex` de 30 caracteres, que de otro modo pasarían.
+- **`number` se valida con `Number.isFinite(Number(x))`.** Acepta cualquier literal numérico de
+  JavaScript, incluidos `1e5` o `-3.5`. Es la lectura literal de "numérico". Si la expectativa fuera
+  sólo enteros decimales, es cambiar esa línea de `files.parser.js` por un `/^\d+$/`.
+- **También se descartan las líneas con *más* de cuatro columnas.** La historia de usuario sólo hablaba
+  de "menos de 4"; ésta es la única regla que va por encima de los criterios. El razonamiento: el CSV
+  no usa comillas, así que una coma de más no puede ser un campo con coma adentro — es dato corrupto,
+  y admitirlo significaría elegir arbitrariamente cuáles cuatro columnas son las buenas. Descarta 3
+  filas reales.
+- **La cabecera se descarta por posición**, no comparando su texto. Una cabecera inesperada contaría
+  como línea inválida e inflaría `lines_discarded`, que es una métrica de datos corruptos.
+- **Las líneas en blanco se ignoran y no se cuentan como descartadas**, incluida la final. Es lo que
+  evita que un salto de línea al cierre o los finales `\r\n` inventen descartes.
+- **El campo `file` sale del nombre del archivo procesado**, no de la primera columna del CSV: es el
+  nombre con el que se pidió el archivo y el único que el cliente puede correlacionar con el listado.
+- **Un archivo sin líneas válidas se incluye con `"lines": []`**, no se omite. Omitirlo haría
+  indistinguible "el archivo existe pero no traía nada usable" de "el archivo no existe" o "no se pudo
+  descargar", que son tres cosas distintas. En las corridas reales es el caso de la mayoría de los
+  archivos.
+
+### El filtro `?fileName=`
+
+- **Se filtra antes de descargar, no después.** Filtrar el resultado daría la misma respuesta gastando
+  N-1 descargas, que es justamente lo que el punto opcional viene a evitar. El service recorta el
+  listado y recién ahí descarga; contra el API externo real eso son 1 descarga en vez de 9.
+- **Un `fileName` que no está en el listado responde `404`, no `200` con `[]`.** El criterio dejaba
+  las dos abiertas. `[]` es la respuesta correcta a "este archivo no traía nada usable", y usarla
+  también para "este archivo no existe" volvería indistinguibles dos cosas que el cliente resuelve de
+  forma distinta: una es un dato, la otra es un nombre mal escrito. Es el mismo razonamiento por el
+  que un archivo sin líneas válidas se incluye con `"lines": []` en vez de omitirse.
+- **Ese `404` reutiliza `EXTERNAL_API_FILE_NOT_FOUND` en vez de estrenar un código.** Para el cliente
+  significa exactamente lo mismo que ya significaba: el API externo no sirve ese archivo. Un código
+  nuevo distinguiría *cómo* se enteró el API —por el listado o por un `404` de la descarga—, que es
+  detalle de implementación y no cambia nada de lo que el cliente puede hacer al respecto.
+- **El `fileName` presente pero vacío es `400`, no "sin filtro".** Tratarlo como ausente sería adivinar
+  la intención: quien mandó el param quiso filtrar, y no dijo por qué archivo. Lo mismo con el param
+  repetido (`?fileName=a&fileName=b`), donde Express entrega un array: tampoco nombra un archivo.
+- **El filtro no cambia el contrato de la respuesta.** Sigue siendo el mismo array pelado, con un
+  elemento; y una descarga que falla sigue degradando a `200` con `[]`, igual que sin filtro. La
+  validación del param vive en el controller, que es la capa que ve `req`; la decisión de qué se
+  descarga vive en el service, que es la que conoce el listado.
+
+### Resiliencia
+
+- **El parser descarta, no falla.** `files.parser.js` es una función pura que nunca lanza por datos
+  corruptos: cuenta las líneas inválidas en `discarded` y el controller las publica como
+  `lines_discarded`. Un archivo con basura no rompe la respuesta de los demás.
+- **Las descargas van en paralelo con `Promise.allSettled`**, que es lo que hace que una falla parcial
+  sea parcial: una descarga rechazada no cancela a las otras, y los resultados conservan el orden del
+  listado, así que cada fallo se puede reasociar con su archivo.
+- **La falla del listado sí propaga.** No tiene nada de parcial: sin listado no hay nada que devolver,
+  así que sale un `502` en vez de un `200` con `[]`, que mentiría diciendo que el API externo no tiene
+  archivos.
+- **Un `uncaughtException` no reinicia el proceso: se loguea y el servidor sigue en pie.** Es lo
+  contrario de la práctica habitual —loguear y salir, para que un supervisor levante un proceso limpio—
+  y es deliberado. Acá `npm start` es todo el deploy: no hay supervisor que reinicie nada, así que
+  salir deja al evaluador sin API. Y el riesgo que justifica salir, un proceso con estado corrupto, no
+  aplica: este API es un proxy de sólo lectura que no guarda nada entre requests, así que la siguiente
+  se sirve igual de bien. En un deploy con supervisor la decisión se revierte.
+
+### HTTP
+
+- **Las dos formas de respuesta las fija el enunciado, y ninguna se toca.** `/files/data` va como array
+  pelado y `/files/list` con el envoltorio `{ "files": [...] }` del API externo. Son contrarias entre sí
+  y así se dejan: uniformarlas —o agregarles un envelope `{ meta, data }`— rompería lo único que el
+  evaluador verifica copiando el curl del enunciado. La traducción vive en los bordes: el repositorio
+  desenvuelve el listado para el dominio, y el controller de `/files/list` lo vuelve a envolver al salir.
+- **CORS: se responde `Access-Control-Allow-Origin: *`.** El frontend se sirve desde otro puerto, así
+  que sin ese header el browser bloquea la respuesta. Es el **único** header CORS que se manda: el API
+  es de sólo lectura, no recibe credenciales ni headers custom, así que sus `GET` son *simple requests*
+  y nunca disparan un preflight `OPTIONS`. Agregar `Allow-Methods` o `Allow-Headers` sería ruido.
+- **`notFound` y `errorHandler` viven en el mismo archivo.** No pueden ser la misma función —Express
+  los distingue por aridad, 3 parámetros contra 4— pero son las dos puntas de la misma cadena.
+- **Los errores son una factory sobre `Error`**, no subclases: conserva el stack trace sin introducir
+  clases.
+- **El stack trace nunca sale al cliente**, y un error no tipado se reporta como `Internal server
+  error`. El detalle real queda en la línea de log.
+
+### Plataforma
+
+- **ESM nativo** (`"type": "module"`) en vez de CommonJS. Obliga a extensiones `.js` explícitas en los
+  imports relativos, pero es JavaScript moderno sin transpilar — y el challenge prohíbe Babel.
+- **Sin variables de entorno.** El challenge las prohíbe como requisito; hardcodear en
+  `src/shared/config.js` evita además el parseo de strings y los defaults duplicados.
+- **Versiones fijadas por Node 14**: `pino@8` (la 9 exige Node 18+), `chai@4` (la 5 es ESM-only y exige
+  Node 18+), `mocha@10`, `sinon@15`. El detalle está en `.claude/skills/node14-constraints/`.
+- **Todo el código fuente en inglés** —identificadores, comentarios, mensajes de error, nombres de
+  tests—. La documentación queda en español.
+
+### Estilo de código
+
+El proyecto sigue [JavaScript Standard Style](https://standardjs.com/), el punto opcional `TASK-011`.
+`npm run lint` corre `standard` sobre todo el repositorio —`src/` **y** `test/`— y el CI lo reporta
+como un check propio.
+
+- **`standard@17`, no la última por inercia sino porque su rango de `engines` incluye Node 14**
+  (`^12.22.0 || ^14.17.0 || >=16.0.0`). Es el mismo rango de `eslint@8`, del que depende. Node 14.17 es
+  el piso; el `.nvmrc` del proyecto resuelve a 14.21.3, así que entra.
+- **El código ya cumplía el estándar antes de instalarlo.** `standard --fix` no reescribió una sola
+  línea: sin punto y coma, comillas simples, indentación de 2 espacios y espaciado de bloques ya eran
+  la convención del repositorio. Instalar el linter no fue un reformateo, fue hacer verificable lo que
+  ya se venía escribiendo a mano.
+- **Los globals de Mocha se declaran una sola vez**, con `"standard": { "env": ["mocha"] }` en el
+  `package.json`, en lugar de repetir `/* eslint-env mocha */` en cabecera de cada uno de los trece
+  archivos de test. `standard` no admite configuración por directorio, y ensuciar `src/` con unos
+  globals que nunca se usan es más barato que trece comentarios que hay que acordarse de copiar.
+- **Las aserciones de propiedad de Chai se escribieron como llamada.** `expect(x).to.be.a('string')
+  .and.not.be.empty` es una expresión sin efecto —`no-unused-expressions`— y además falla en silencio
+  si uno escribe mal la propiedad. Pasó a `.and.not.equal('')`: misma aserción, y si el nombre está mal
+  el test rompe en vez de pasar de largo.
+- **El `// eslint-disable-next-line no-unused-vars` sobre `errorHandler` se queda.** El `next` que no
+  se usa es lo que le da al handler la aridad de 4 parámetros con la que Express lo reconoce como
+  manejador de errores; borrarlo desarmaría el manejo de errores entero. `standard` no se queja —su
+  `no-unused-vars` va con `args: 'none'`— pero el comentario documenta la restricción para quien lea.
 
 ## Skills de Claude Code
 
