@@ -111,7 +111,7 @@ Opcionales: HU-BE-09 (/files/list) · HU-BE-10 (?fileName=) · HU-BE-11 (Standar
 ### Notas técnicas
 
 - Estructura por capas sugerida: `routes/` → `controllers/` → `services/` → `clients/`.
-- Puerto por defecto `3000`, sobreescribible por `process.env.PORT` (opcional, nunca obligatorio).
+- Puerto fijo `3000` en `src/shared/config.js`. No se lee ninguna variable de entorno.
 - Middleware de JSON y manejador de errores centralizado registrados desde el inicio.
 
 ### INVEST
@@ -236,7 +236,7 @@ Opcionales: HU-BE-09 (/files/list) · HU-BE-10 (?fileName=) · HU-BE-11 (Standar
 ### Notas técnicas
 
 - El controlador orquesta HU-BE-02, HU-BE-03 y HU-BE-04; no contiene lógica de parseo.
-- Confirmar con el evaluador si los archivos sin líneas válidas deben incluirse con `lines: []` u omitirse; dejar la decisión asentada en el README.
+- Los archivos sin líneas válidas se incluyen con `lines: []`; el razonamiento está en el README y en la tabla de ambigüedades de este documento.
 
 ### INVEST
 
