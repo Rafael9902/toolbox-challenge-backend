@@ -1,0 +1,232 @@
+openapi: 3.0.3
+
+info:
+  title: Toolbox Challenge API
+  version: 1.0.0
+  description: |
+    Reads the files of the Toolbox external API, formats their CSV content
+    discarding the malformed lines, and exposes the result as JSON.
+
+    Every response carries `application/json`, errors included. There is no
+    authentication: the API key of the external service is held server side and
+    never reaches the client.
+
+    **The shapes are fixed by the challenge statement and are deliberately
+    different from each other:** `/files/data` answers a bare array, while
+    `/files/list` mirrors the envelope of the external API.
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local, started with `npm start` or `docker compose up`
+
+tags:
+  - name: files
+    description: The files of the external API
+
+paths:
+  /files/data:
+    get:
+      tags: [files]
+      summary: Formatted content of every file
+      description: |
+        Lists the files of the external API, downloads them in parallel and
+        formats their CSV, discarding the lines that do not carry four non-empty
+        columns with a numeric `number` and a 32 character hexadecimal `hex`.
+
+        Partial failures do not fail the request: a file whose download failed is
+        left out and the rest are answered. A file that arrives empty, or whose
+        every line was discarded, is kept with `lines: []` — that tells it apart
+        from a file that could not be downloaded.
+      operationId: getFilesData
+      parameters:
+        - name: fileName
+          in: query
+          required: false
+          description: |
+            Narrows the answer to a single file. The narrowing happens here, not
+            in the client: only that file is downloaded from the external API.
+          schema:
+            type: string
+            minLength: 1
+          example: test3.csv
+      responses:
+        '200':
+          description: |
+            The formatted files. An empty array means no file could be
+            processed, which is not an error.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileData'
+              examples:
+                everyFile:
+                  summary: Without the filter, including a file with no valid lines
+                  value:
+                    - file: test1.csv
+                      lines: []
+                    - file: test3.csv
+                      lines:
+                        - text: CVudCdTeDyyDjBVvL
+                          number: 952972067
+                          hex: 5044e6d8ce7d6dcef942255a66a1b2c3
+                oneFile:
+                  summary: With `?fileName=test3.csv`
+                  value:
+                    - file: test3.csv
+                      lines:
+                        - text: CVudCdTeDyyDjBVvL
+                          number: 952972067
+                          hex: 5044e6d8ce7d6dcef942255a66a1b2c3
+        '400':
+          description: The `fileName` param is present but names no file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVALID_QUERY_PARAM
+                  message: Query param fileName must be a non-empty file name
+        '404':
+          description: The requested `fileName` is not in the listing of the external API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EXTERNAL_API_FILE_NOT_FOUND
+                  message: 'File not found in the external API listing: nope.csv'
+        '502':
+          description: |
+            The listing of the external API failed. Unlike a failed download,
+            there is nothing partial to answer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EXTERNAL_API_UNAVAILABLE
+                  message: 'External API request failed: /files'
+
+  /files/list:
+    get:
+      tags: [files]
+      summary: Names of the available files
+      description: |
+        Mirrors the listing of the external API byte for byte, envelope
+        included, as the statement asks. Downloads nothing.
+      operationId: getFilesList
+      responses:
+        '200':
+          description: The listing, in the shape the external API serves it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+              example:
+                files: [test1.csv, test2.csv, test3.csv, test18.csv]
+        '502':
+          description: The external API could not be reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files/health:
+    get:
+      tags: [files]
+      summary: Liveness of the application
+      description: Answers without reaching the external API.
+      operationId: getHealth
+      responses:
+        '200':
+          description: The application is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    FileLine:
+      type: object
+      description: A line that survived the parsing.
+      required: [text, number, hex]
+      properties:
+        text:
+          type: string
+          description: Second column of the CSV.
+          example: CVudCdTeDyyDjBVvL
+        number:
+          type: number
+          description: Third column, already converted from text.
+          example: 952972067
+        hex:
+          type: string
+          description: Fourth column, 32 hexadecimal characters.
+          pattern: '^[0-9a-fA-F]{32}$'
+          example: 5044e6d8ce7d6dcef942255a66a1b2c3
+
+    FileData:
+      type: object
+      description: |
+        A file with the lines that could be parsed. `lines` comes empty when the
+        file was empty or every one of its lines was discarded.
+      required: [file, lines]
+      properties:
+        file:
+          type: string
+          description: |
+            Name of the processed file, taken from the listing and not from the
+            first column of the CSV.
+          example: test3.csv
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileLine'
+
+    FileList:
+      type: object
+      required: [files]
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+          example: [test1.csv, test2.csv]
+
+    Error:
+      type: object
+      description: The shape of every error answer, on every endpoint.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable identifier, safe to branch on.
+              enum:
+                - INVALID_QUERY_PARAM
+                - EXTERNAL_API_FILE_NOT_FOUND
+                - EXTERNAL_API_UNAVAILABLE
+                - ROUTE_NOT_FOUND
+                - INTERNAL
+            message:
+              type: string
+              description: |
+                Human readable description. Never carries a stack trace: an
+                untyped failure is reported as `Internal server error` and the
+                real cause stays in the log line.
