@@ -474,6 +474,7 @@ src/
 │       ├── index.js                # barril: declara la API pública del módulo (sólo el router)
 │       ├── files.routes.js         # exporta filesRouter
 │       ├── files.controller.js     # única capa que toca req/res
+│       ├── files.validators.js     # función pura: valida el query param
 │       ├── files.service.js        # orquesta: lista, descarga en paralelo, formatea, cuenta
 │       ├── files.repository.js     # aísla el API externo: listFiles + downloadFile
 │       └── files.parser.js         # función pura: CSV crudo -> líneas válidas + descartadas
@@ -586,7 +587,7 @@ Para levantar el API en otro puerto se cambia `port` en ese archivo; es un objet
 **Mocha + Chai**, con `supertest` para las rutas, `nock` para el API externo y `sinon` para los espías.
 
 ```bash
-npm test                 # 126 tests
+npm test                 # 135 tests
 npm run test:unit        # 57
 npm run test:integration # 69
 ```

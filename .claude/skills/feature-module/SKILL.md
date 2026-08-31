@@ -16,6 +16,7 @@ src/modules/<feature>/
 ├── index.js                  # barril: declara la API pública del módulo
 ├── <feature>.routes.js       # exporta <feature>Router
 ├── <feature>.controller.js   # handlers: tocan req/res
+├── <feature>.validators.js   # validan la entrada HTTP      sólo si hay input que validar
 ├── <feature>.service.js      # lógica de dominio, datos planos
 ├── <feature>.repository.js   # I/O contra el API externo      sólo si hay I/O
 └── <feature>.parser.js       # transformaciones PURAS          sólo si hay que parsear
@@ -83,10 +84,16 @@ Sin factories y sin parámetros de cableado: el `index.js` es un barril, no un c
 | Capa | Puede | NUNCA |
 |---|---|---|
 | `routes` | Mapear verbo + path → handler del controller | Lógica, validación, `try/catch` |
-| `controller` | Tocar `req`/`res`, validar y extraer input, mapear resultado → status + JSON, plegar las `stats` del service en la línea de log | Llamar al repository, parsear, hablar con el API externo |
+| `controller` | Tocar `req`/`res`, mapear resultado → status + JSON, plegar las `stats` del service en la línea de log | Llamar al repository, parsear, validar a mano lo que ya valida un validator |
+| `validators` | Leer un dato crudo de la request y devolverlo saneado, o lanzar un `AppError` 4xx. **Funciones puras** | Ver `req`/`res`, tocar el service, hacer I/O |
 | `service` | Orquestar el dominio, devolver `{ data, stats }` con datos planos | Ver `req`/`res`, conocer códigos HTTP, tocar el log |
 | `repository` | I/O contra el API externo, lanzar `AppError` tipado | Parsear, conocer Express, dar forma a la respuesta HTTP |
 | `parser` | Transformar texto → datos. **Función pura** | I/O, logging, lanzar excepciones por datos inválidos |
+
+Los validators no son una capa más en la cadena: son funciones puras que el controller invoca sobre un
+valor crudo. Reciben `req.query.x`, no `req`. Extraerlos deja el handler en puro mapeo HTTP y los hace
+testeables sin levantar la app — el de `?fileName=` pasó de probarse sólo de rebote por integración a
+tener nueve tests propios.
 
 Regla mnemotécnica: **cada capa sólo conoce a la de abajo.**
 Si un archivo importa algo que salta una capa, está mal.
@@ -152,7 +159,7 @@ Ver la skill `testing-mocha-chai`.
 ## Checklist para agregar una feature
 
 1. Crear `src/modules/<feature>/` con las capas que la feature realmente necesite.
-2. Escribir la lógica pura primero (`parser`), después el `service`, después el `controller`.
+2. Escribir la lógica pura primero (`parser`, `validators`), después el `service`, después el `controller`.
 3. Exportar el router desde `<feature>.routes.js`, reexportarlo en `index.js`, y montarlo en `src/app.js` con una línea.
 4. Devolver las dimensiones de dominio en `stats` para que el controller las pliegue en la línea de
    log — ver la skill `logging`.
