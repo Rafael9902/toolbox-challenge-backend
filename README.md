@@ -256,13 +256,25 @@ Para ver la spec sin instalar nada, pegá el contenido de `openapi.yaml` en
 [editor.swagger.io](https://editor.swagger.io/).
 
 La colección de Postman **no es sólo una lista de requests**: cada una lleva sus tests, así que
-`Run collection` verifica el contrato en vez de sólo mostrar respuestas. Con el API levantado se puede
-correr desde la línea de comandos:
+`Run collection` verifica el contrato en vez de sólo mostrar respuestas. Y cada una trae **ejemplos
+guardados** —incluidas las variantes de error— para poder leer las formas sin levantar nada. Con el API
+corriendo:
 
 ```bash
 npx newman run docs/toolbox-challenge-api.postman_collection.json
-# 7 requests, 13 assertions, 0 failures
+# 5 requests, 12 assertions, 0 failures
 ```
+
+| Request | Ejemplos |
+|---|---|
+| Get files | Every file |
+| Get files by file name | One file · Empty file name (400) · Unknown file name (404) |
+| Get file names | The listing |
+| Get service health | Up |
+| Get an unknown route | Route not found (404) |
+
+`Get files` deja en una variable el nombre de un archivo que **hoy** tiene líneas, y `Get files by file
+name` la usa: así la colección corre entera aunque el API externo cambie sus datos.
 
 Comprueba lo que el enunciado fija y es fácil de romper sin darse cuenta: que `/files/data` devuelva un
 array **pelado**, que cada elemento tenga **sólo** `file` y `lines`, que `number` viaje como número JSON
