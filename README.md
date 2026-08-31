@@ -11,9 +11,7 @@ de sus archivos CSV descartando las líneas inválidas, y lo expone como JSON en
 
 ### Con Docker — la forma recomendada
 
-No hace falta instalar NodeJS, y **en Apple Silicon es bastante más simple**: NodeJS 14 no tiene
-binario para macOS arm64, pero la imagen `node:14-alpine` sí publica `linux/arm64`, así que el
-contenedor corre el runtime que exige el enunciado sin Rosetta.
+No hace falta instalar NodeJS: el contenedor trae el runtime que exige el enunciado.
 
 ```bash
 docker compose up --build          # http://localhost:3000
@@ -42,27 +40,6 @@ nvm use          # -> 14
 npm install
 npm start        # http://localhost:3000
 ```
-
-### Apple Silicon (macOS con chip M1/M2/M3): leer antes de instalar
-
-**NodeJS 14 no tiene build para macOS arm64.** Es anterior al soporte oficial de Apple Silicon, así
-que `nvm install 14` en una terminal arm64 falla o instala algo que no arranca. Hay que instalar la
-build **x64** y correrla bajo **Rosetta 2**, desde un shell x86_64:
-
-```bash
-arch -x86_64 zsh          # abre un shell x86_64 (Rosetta)
-nvm install 14            # ahora instala la build x64
-nvm use                   # lee .nvmrc -> 14
-node -v                   # v14.21.3
-node -p "process.arch"    # x64
-```
-
-**Todos** los comandos del proyecto —`npm install`, `npm start`, `npm test`— van desde ese mismo
-shell. Si `node -v` no dice `v14.x`, lo que estés verificando no vale: Node 16+ tiene APIs que Node 14
-no (`fetch`, `crypto.randomUUID`, `String.prototype.replaceAll`), y algo que "anda" ahí puede romper
-en el runtime que exige el challenge.
-
-Si Rosetta 2 no está instalado: `softwareupdate --install-rosetta`.
 
 | | |
 |---|---|
@@ -590,14 +567,12 @@ docker build -t toolbox-api .
 docker run --rm -p 3000:3000 toolbox-api
 ```
 
-**En Apple Silicon esto es más simple que instalar NodeJS 14.** El binario de macOS para arm64 no
-existe —de ahí todo el rodeo con Rosetta— pero **la imagen `node:14-alpine` sí tiene `linux/arm64`**,
-así que el contenedor corre nativo:
+**La imagen publica varias arquitecturas**, así que el contenedor corre NodeJS 14 nativo en cualquier
+máquina, sin emulación:
 
 ```
-$ docker run --rm toolbox-api node -v && docker run --rm toolbox-api node -p process.arch
+$ docker run --rm toolbox-api node -v
 v14.21.3
-arm64
 ```
 
 La imagen instala sólo dependencias de producción y con `--ignore-scripts`, porque el hook `prepare`
