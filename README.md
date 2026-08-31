@@ -469,24 +469,25 @@ de husky no tiene repositorio git donde instalarse ni sentido dentro de una imag
 `node` directamente y no `npm start`: npm quedaría entre las señales y el proceso, y el contenedor no
 se podría detener limpiamente.
 
-### Las dos apps juntas
-
-`docker-compose.yml` levanta el API y el cliente. Construye el cliente desde el directorio hermano, así
-que **los dos repos tienen que estar clonados uno al lado del otro**:
-
-```
-toolbox/
-├── toolbox-challenge-backend    <- docker compose up corre acá
-└── toolbox-challenge-frontend
-```
+O con Compose:
 
 ```bash
-docker compose up --build      # API en :3000, app en http://localhost:8080
+docker compose up --build      # API en http://localhost:3000
+```
+
+### Las dos apps juntas
+
+**Cada repo tiene su propio `docker-compose.yml` con un solo servicio**, así que ninguno depende de
+dónde esté clonado el otro. Para levantar todo, un `docker compose up` en cada uno, en dos terminales:
+
+```bash
+cd toolbox-challenge-backend  && docker compose up --build   # API en :3000
+cd toolbox-challenge-frontend && docker compose up --build   # app en :8080
 ```
 
 El cliente es un bundle estático: su JavaScript corre en el navegador, no en el contenedor, así que
-alcanza el API en `localhost:3000` de la máquina anfitriona. Por eso el API publica su puerto en vez
-de que los dos servicios se hablen por la red de Compose.
+alcanza el API en `localhost:3000` de la máquina anfitriona. Por eso alcanza con que cada servicio
+publique su puerto y no hace falta una red compartida de Compose.
 
 ## Arquitectura
 
