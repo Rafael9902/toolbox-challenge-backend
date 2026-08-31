@@ -1,0 +1,225 @@
+{
+  "info": {
+    "name": "Toolbox Challenge API",
+    "description": "The API of the Toolbox challenge, with a request per endpoint and per documented failure.\n\nThe `baseUrl` variable points at `http://localhost:3000`; change it once at collection level to aim somewhere else.\n\nEvery request carries tests, so `Run collection` verifies the contract end to end instead of only showing the responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /files/data",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/files/data", "host": ["{{baseUrl}}"], "path": ["files", "data"] },
+        "description": "Every file, formatted. A file whose download failed is left out; a file with no valid lines is kept with an empty `lines`."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 200 as application/json', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json')",
+              "})",
+              "",
+              "pm.test('is a bare array, without an envelope', () => {",
+              "  pm.expect(pm.response.json()).to.be.an('array')",
+              "})",
+              "",
+              "pm.test('every item carries only file and lines', () => {",
+              "  pm.response.json().forEach((entry) => {",
+              "    pm.expect(Object.keys(entry).sort()).to.eql(['file', 'lines'])",
+              "    pm.expect(entry.lines).to.be.an('array')",
+              "  })",
+              "})",
+              "",
+              "pm.test('number travels as a JSON number, not as text', () => {",
+              "  pm.response.json().flatMap((entry) => entry.lines).forEach((line) => {",
+              "    pm.expect(line.number).to.be.a('number')",
+              "    pm.expect(line.text).to.be.a('string')",
+              "    pm.expect(line.hex).to.match(/^[0-9a-f]{32}$/i)",
+              "  })",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /files/data?fileName=",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/files/data?fileName=test3.csv",
+          "host": ["{{baseUrl}}"],
+          "path": ["files", "data"],
+          "query": [{ "key": "fileName", "value": "test3.csv" }]
+        },
+        "description": "Narrows the answer to one file. The narrowing happens on the API: only that file is downloaded from the external service."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 200', () => pm.response.to.have.status(200))",
+              "",
+              "pm.test('answers exactly one file, the requested one', () => {",
+              "  const body = pm.response.json()",
+              "  pm.expect(body).to.have.lengthOf(1)",
+              "  pm.expect(body[0].file).to.eql('test3.csv')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /files/data?fileName= (empty)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/files/data?fileName=",
+          "host": ["{{baseUrl}}"],
+          "path": ["files", "data"],
+          "query": [{ "key": "fileName", "value": "" }]
+        },
+        "description": "A param that is present but names no file is a client error: the caller meant to filter and could not say by what."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 400 with a typed error', () => {",
+              "  pm.response.to.have.status(400)",
+              "  pm.expect(pm.response.json().error.code).to.eql('INVALID_QUERY_PARAM')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /files/data?fileName= (unknown file)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/files/data?fileName=nope.csv",
+          "host": ["{{baseUrl}}"],
+          "path": ["files", "data"],
+          "query": [{ "key": "fileName", "value": "nope.csv" }]
+        },
+        "description": "A name absent from the listing answers 404 rather than an empty array: an empty array already means the file carried nothing usable."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 404 with a typed error', () => {",
+              "  pm.response.to.have.status(404)",
+              "  pm.expect(pm.response.json().error.code).to.eql('EXTERNAL_API_FILE_NOT_FOUND')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /files/list",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/files/list", "host": ["{{baseUrl}}"], "path": ["files", "list"] },
+        "description": "Mirrors the listing of the external API, envelope included, as the statement asks. Downloads nothing."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 200', () => pm.response.to.have.status(200))",
+              "",
+              "pm.test('keeps the { files } envelope of the external API', () => {",
+              "  const body = pm.response.json()",
+              "  pm.expect(Object.keys(body)).to.eql(['files'])",
+              "  pm.expect(body.files).to.be.an('array')",
+              "  body.files.forEach((name) => pm.expect(name).to.be.a('string'))",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /files/health",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/files/health", "host": ["{{baseUrl}}"], "path": ["files", "health"] },
+        "description": "Liveness of the application. Answers without reaching the external API."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 200 with status ok', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json()).to.eql({ status: 'ok' })",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /unknown (404)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "accept", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/unknown", "host": ["{{baseUrl}}"], "path": ["unknown"] },
+        "description": "An unmatched route answers JSON, never the HTML page Express serves by default."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('answers 404 as JSON, not HTML', () => {",
+              "  pm.response.to.have.status(404)",
+              "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json')",
+              "  pm.expect(pm.response.text()).to.not.include('<html')",
+              "})",
+              "",
+              "pm.test('carries the typed code and no stack trace', () => {",
+              "  const body = pm.response.json()",
+              "  pm.expect(body.error.code).to.eql('ROUTE_NOT_FOUND')",
+              "  pm.expect(body.error).to.not.have.property('stack')",
+              "})"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

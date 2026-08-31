@@ -245,6 +245,33 @@ produce cuando el API externo responde `404` a la descarga de un archivo. Ahí e
 se reporta en `files_failed_names`, no como error de la request. Ver
 [Decisiones de diseño](#decisiones-de-diseño).
 
+## Documentación del API
+
+| Archivo | Qué es |
+|---|---|
+| [`docs/openapi.yaml`](docs/openapi.yaml) | Especificación **OpenAPI 3.0.3**: los tres endpoints, sus parámetros, y cada respuesta de éxito y de error con ejemplos |
+| [`docs/toolbox-challenge-api.postman_collection.json`](docs/toolbox-challenge-api.postman_collection.json) | Colección **Postman v2.1** con una request por endpoint y por falla documentada |
+
+Para ver la spec sin instalar nada, pegá el contenido de `openapi.yaml` en
+[editor.swagger.io](https://editor.swagger.io/).
+
+La colección de Postman **no es sólo una lista de requests**: cada una lleva sus tests, así que
+`Run collection` verifica el contrato en vez de sólo mostrar respuestas. Con el API levantado se puede
+correr desde la línea de comandos:
+
+```bash
+npx newman run docs/toolbox-challenge-api.postman_collection.json
+# 7 requests, 13 assertions, 0 failures
+```
+
+Comprueba lo que el enunciado fija y es fácil de romper sin darse cuenta: que `/files/data` devuelva un
+array **pelado**, que cada elemento tenga **sólo** `file` y `lines`, que `number` viaje como número JSON
+y no como texto, que `/files/list` conserve el envoltorio `{ files }`, y que una ruta inexistente
+responda JSON y no la página HTML de Express.
+
+> `newman` corre en NodeJS 16 o superior; el API sigue corriendo en 14. Son procesos distintos, así que
+> no hay conflicto: levantá el API con `nvm use` y corré `newman` desde otra terminal.
+
 ## Contra el API externo real
 
 Los datos que sirve el API externo están sucios a propósito, y es justamente lo que este API tiene que
