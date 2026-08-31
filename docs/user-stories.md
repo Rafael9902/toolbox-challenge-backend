@@ -5,9 +5,9 @@
 **Repositorio destino:** `toolbox-challenge-backend`
 **Fecha de elaboración:** 2026-08-27
 
-> **Estado:** `TASK-001` está entregada (ver `Done` en el board). El resto sigue pendiente.
-> Este documento es el backlog de planificación: los criterios de aceptación son el contrato;
-> las *Notas técnicas* reflejan las decisiones ya tomadas durante la implementación.
+> **Estado: las 12 historias están entregadas** — las 8 obligatorias y los 4 puntos opcionales.
+> Este documento es el backlog de planificación: los criterios de aceptación son el contrato, y las
+> *Notas técnicas* reflejan las decisiones tomadas durante la implementación.
 
 ---
 
@@ -483,10 +483,19 @@ Opcionales: HU-BE-09 (/files/list) · HU-BE-10 (?fileName=) · HU-BE-11 (Standar
 
 ---
 
-## Dudas a consultar con quien envió el challenge
+## Ambigüedades del enunciado, y cómo se resolvieron
 
-1. Un archivo cuyo CSV queda sin líneas válidas, ¿debe aparecer con `lines: []` u omitirse de la respuesta?
-2. ¿Se espera validación estricta del campo `hex` (32 dígitos hexadecimales) o alcanza con que la columna esté presente?
-3. Ante un `fileName` inexistente en `GET /files/data?fileName=`, ¿se prefiere `404` o `200` con array vacío?
-4. ¿Debe la API Key quedar hardcodeada en configuración, dado que las variables de entorno obligatorias están prohibidas?
-5. ¿El `docker-compose.yml` debe vivir en un repositorio separado o dentro de uno de los dos existentes?
+El enunciado dejaba varias puertas abiertas. Cada una se resolvió durante la implementación y la
+decisión quedó documentada en el README, no en el código a escondidas.
+
+| Ambigüedad | Resolución |
+|---|---|
+| Un archivo sin líneas válidas, ¿se incluye con `lines: []` o se omite? | **Se incluye.** Omitirlo haría indistinguibles tres cosas: no traía nada usable, no existe, o no se pudo descargar |
+| ¿`hex` se valida entero o alcanza con que la columna esté? | **Entero**, `/^[0-9a-f]{32}$/i`: el enunciado pide "32 dígitos". Descarta 5 filas reales de 30 caracteres |
+| Un `fileName` inexistente, ¿`404` o `200` con `[]`? | **`404`.** `[]` ya significa "no traía nada usable"; usarlo también para "no existe" mezcla un dato con un nombre mal escrito |
+| ¿La API Key hardcodeada, si las variables de entorno están prohibidas? | **Hardcodeada** en `src/shared/config.js`, como el resto de la configuración |
+| ¿Dónde vive el `docker-compose.yml`? | **Uno por repositorio, con un solo servicio.** Un compose que construyera el otro repo dependería de dónde esté clonado |
+
+Una regla se agregó por encima de los criterios y también quedó documentada: **las líneas con *más* de
+cuatro columnas también se descartan**. El CSV no usa comillas, así que una coma de más es dato
+corrupto, y aceptarla obligaría a elegir arbitrariamente cuáles cuatro columnas valen.
