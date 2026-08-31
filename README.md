@@ -99,137 +99,52 @@ npm run lint             # JavaScript Standard Style
 ## Endpoints
 
 Todas las respuestas, incluidas las de error, salen en `application/json`.
+El detalle completo con ejemplos está en la
+[documentación publicada](https://documenter.getpostman.com/view/27146414/2sBYAuSrSX).
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `GET` | `/files/data` | Lista, descarga y formatea los archivos del API externo. Opcionalmente uno solo, con `?fileName=` |
-| `GET` | `/files/list` | Devuelve el listado de archivos tal cual lo expone el API externo |
+| `GET` | `/files/data` | Lista, descarga y formatea todos los archivos. Acepta `?fileName=` |
+| `GET` | `/files/list` | Devuelve el listado tal cual lo expone el API externo |
 | `GET` | `/files/health` | Verifica que la aplicación está en pie |
 
 ### `GET /files/data`
 
-```bash
-curl -s http://localhost:3000/files/data
-```
-
-El cuerpo es un **array pelado, sin envoltorio**, tal como lo fija el enunciado. Cada elemento es un
-archivo; cada línea válida, un `{ text, number, hex }`:
+Array **pelado**, sin envoltorio, como lo fija el enunciado:
 
 ```json
 [
-  {
-    "file": "test1.csv",
-    "lines": []
-  },
-  {
-    "file": "test3.csv",
-    "lines": [
-      { "text": "g", "number": 101382507, "hex": "65badd1f29e6235199261cd3026a97f5" },
-      { "text": "mwmBQxoeKkxMm", "number": 57685292, "hex": "cb6dfa6422d170d2ae99aaf3f99665e4" },
-      { "text": "clnburZYpPQgBiveSSeq", "number": 527447, "hex": "b57c543e4d1f0dab7d4353f9dd0db302" }
-    ]
-  }
+  { "file": "test1.csv", "lines": [] },
+  { "file": "test3.csv", "lines": [
+      { "text": "g", "number": 101382507, "hex": "65badd1f29e6235199261cd3026a97f5" }
+  ]}
 ]
 ```
 
-> Respuesta real recortada a dos archivos. La corrida completa del 2026-08-28 devolvió 7 archivos;
-> ver [Contra el API externo real](#contra-el-api-externo-real).
+`file` es el nombre del archivo procesado —no la primera columna del CSV— y `number` viaja como número,
+no como texto.
 
-| Campo | Tipo | Origen |
-|---|---|---|
-| `file` | `string` | Nombre del archivo procesado, **no** la primera columna del CSV |
-| `lines[].text` | `string` | Segunda columna |
-| `lines[].number` | `number` | Tercera columna, ya convertida a número |
-| `lines[].hex` | `string` | Cuarta columna, 32 caracteres hexadecimales |
-
-**Comportamiento ante fallas** (el detalle del *por qué* está en [Decisiones de diseño](#decisiones-de-diseño)):
+**Ante fallas** (el porqué está en [Decisiones de diseño](#decisiones-de-diseño)):
 
 | Situación | Respuesta |
 |---|---|
-| Falla la descarga de un archivo | `200`. Ese archivo se omite, los demás se devuelven igual |
-| Fallan **todas** las descargas | `200` con `[]` |
-| Archivo vacío, sólo cabecera, o sin ninguna línea válida | `200`. Se incluye con `"lines": []` |
-| Falla el **listado** | `502` con un error JSON: no hay nada parcial que devolver |
+| Falla la descarga de un archivo | `200`. Se omite ese archivo, los demás se devuelven |
+| Fallan todas las descargas | `200` con `[]` |
+| Archivo vacío o sin líneas válidas | `200`. Se incluye con `"lines": []` |
+| Falla el **listado** | `502`: no hay nada parcial que devolver |
 
-Nada de esto se pierde: los archivos que fallaron y las líneas descartadas quedan contados en la
-línea de log de la request. Ver [Logging](#logging).
-
-#### Filtro opcional `?fileName=`
-
-```bash
-curl -s "http://localhost:3000/files/data?fileName=test2.csv"
-```
-
-```json
-[
-  {
-    "file": "test2.csv",
-    "lines": [
-      { "text": "YcCXKLtFlxm", "number": 89632563, "hex": "17cd994543cc9428c90dbf011c269ea3" }
-    ]
-  }
-]
-```
-
-**El query param es opcional y no cambia el contrato**: sin él la respuesta es exactamente la de
-arriba, todos los archivos. Con él, la respuesta es el mismo array con **un solo elemento**, y —esto
-es el punto del filtro— **se descarga sólo ese archivo**. El listado se pide igual, porque es lo que
-dice si el nombre existe; las descargas pasan de N a 1.
-
-| `?fileName=` | Respuesta |
-|---|---|
-| ausente | `200` con todos los archivos: comportamiento idéntico al de siempre |
-| un archivo del listado | `200` con un array de un elemento |
-| presente pero vacío (`?fileName=`, o sólo espacios) | `400` con `INVALID_QUERY_PARAM` |
-| repetido (`?fileName=a&fileName=b`) | `400` con `INVALID_QUERY_PARAM`: no nombra un archivo |
-| un nombre que no está en el listado | `404` con `EXTERNAL_API_FILE_NOT_FOUND` |
-| un archivo del listado cuya descarga falla | `200` con `[]`, igual que sin filtro |
-
-```bash
-curl -s "http://localhost:3000/files/data?fileName="
-{"error":{"code":"INVALID_QUERY_PARAM","message":"Query param fileName must be a non-empty file name"}}
-
-curl -s "http://localhost:3000/files/data?fileName=nope.csv"
-{"error":{"code":"EXTERNAL_API_FILE_NOT_FOUND","message":"File not found in the external API listing: nope.csv"}}
-```
-
-El nombre pedido queda en la línea de log como `filter_file_name`, así que una request filtrada se
-distingue de una completa de un vistazo. El *por qué* de cada código está en
-[Decisiones de diseño](#decisiones-de-diseño).
+**Filtro opcional** `?fileName=test3.csv` → un solo elemento, y el API descarga **sólo ese archivo**.
+Un nombre que no está en el listado responde `404`; un `fileName` presente pero vacío, `400`.
 
 ### `GET /files/list`
 
-```bash
-curl -s http://localhost:3000/files/list
-```
-
-Devuelve el listado **tal cual lo expone el API externo**, con su envoltorio `{ "files": [...] }` y sin
-reformateo: mismos nombres, mismo orden. Corrida real del **2026-08-30**, byte a byte idéntica a la del
-API externo:
+Espejo exacto del API externo, envoltorio incluido. No descarga nada.
 
 ```json
-{
-  "files": [
-    "test1.csv", "test2.csv", "test3.csv", "test18.csv", "test4.csv",
-    "test5.csv", "test6.csv", "test9.csv", "test15.csv"
-  ]
-}
+{ "files": ["test1.csv", "test2.csv", "test3.csv"] }
 ```
-
-Es el opuesto deliberado de `/files/data`, que va como array pelado: **las dos formas las fija el
-enunciado**, así que ninguna se envuelve ni se desenvuelve por gusto. Internamente el repositorio
-traduce el envoltorio al array de nombres que usa el dominio, y el controller de este endpoint lo
-vuelve a poner al salir.
-
-Este endpoint **no descarga ningún archivo**: es una sola llamada al listado del API externo. Si ese
-listado falla, la respuesta es el mismo `502` con error JSON que devuelve `/files/data`; acá no hay
-nada parcial que entregar.
 
 ### `GET /files/health`
-
-```bash
-curl -s http://localhost:3000/files/health
-```
 
 ```json
 { "status": "ok" }
@@ -237,35 +152,19 @@ curl -s http://localhost:3000/files/health
 
 ### Errores
 
-Toda respuesta de error sale en `application/json`, nunca en HTML, y **nunca incluye el stack trace**.
-La forma es siempre la misma:
-
-```bash
-curl -s http://localhost:3000/unknown
-```
+Siempre la misma forma, nunca HTML, nunca con stack trace:
 
 ```json
 { "error": { "code": "ROUTE_NOT_FOUND", "message": "Route not found: GET /unknown" } }
 ```
 
-Con el API externo caído:
-
-```json
-{ "error": { "code": "EXTERNAL_API_UNAVAILABLE", "message": "External API request failed: /files" } }
-```
-
 | Código | HTTP | Cuándo |
 |---|---|---|
-| `INVALID_QUERY_PARAM` | `400` | `?fileName=` vino presente pero no nombra un archivo: vacío, sólo espacios, o repetido |
+| `INVALID_QUERY_PARAM` | `400` | `?fileName=` presente pero sin nombrar un archivo |
 | `ROUTE_NOT_FOUND` | `404` | La ruta pedida no existe |
-| `EXTERNAL_API_FILE_NOT_FOUND` | `404` | `?fileName=` pide un archivo que no está en el listado del API externo |
-| `EXTERNAL_API_UNAVAILABLE` | `502` | El listado del API externo falló, expiró el timeout, o devolvió un cuerpo que no sigue la forma `{ "files": [...] }` |
-| `INTERNAL` | `500` | Cualquier error no tipado que llegue al handler terminal. El mensaje al cliente es genérico (`Internal server error`); el real queda en el log |
-
-`EXTERNAL_API_FILE_NOT_FOUND` tiene un segundo origen que **no** llega al cliente: el cliente HTTP lo
-produce cuando el API externo responde `404` a la descarga de un archivo. Ahí es una falla parcial y
-se reporta en `files_failed_names`, no como error de la request. Ver
-[Decisiones de diseño](#decisiones-de-diseño).
+| `EXTERNAL_API_FILE_NOT_FOUND` | `404` | El `fileName` pedido no está en el listado |
+| `EXTERNAL_API_UNAVAILABLE` | `502` | El listado del API externo falló o expiró |
+| `INTERNAL` | `500` | Error no tipado. Al cliente le llega un mensaje genérico; el real queda en el log |
 
 ## Contra el API externo real
 
@@ -656,126 +555,71 @@ publique su puerto y no hace falta una red compartida de Compose.
 
 ## Decisiones de diseño
 
-### Formato y validación de los datos
+Donde el enunciado dejaba una puerta abierta, ésta es la que se eligió y por qué.
 
-- **Una línea es válida cuando tiene exactamente cuatro columnas no vacías**, la tercera numérica y la
-  cuarta de 32 caracteres hexadecimales. Cualquier otra cosa se descarta.
-- **`hex` se valida con `/^[0-9a-f]{32}$/i`.** El enunciado pide un "hexadecimal de 32 dígitos", así
-  que se validan las 32 posiciones en vez de aceptar cualquier string; las mayúsculas se aceptan. En
-  la corrida medida esto descartó 5 filas con `hex` de 30 caracteres, que de otro modo pasarían.
-- **`number` se valida con `Number.isFinite(Number(x))`.** Acepta cualquier literal numérico de
-  JavaScript, incluidos `1e5` o `-3.5`. Es la lectura literal de "numérico". Si la expectativa fuera
-  sólo enteros decimales, es cambiar esa línea de `files.parser.js` por un `/^\d+$/`.
-- **También se descartan las líneas con *más* de cuatro columnas.** La historia de usuario sólo hablaba
-  de "menos de 4"; ésta es la única regla que va por encima de los criterios. El razonamiento: el CSV
-  no usa comillas, así que una coma de más no puede ser un campo con coma adentro — es dato corrupto,
-  y admitirlo significaría elegir arbitrariamente cuáles cuatro columnas son las buenas. Descarta 3
-  filas reales.
-- **La cabecera se descarta por posición**, no comparando su texto. Una cabecera inesperada contaría
-  como línea inválida e inflaría `lines_discarded`, que es una métrica de datos corruptos.
-- **Las líneas en blanco se ignoran y no se cuentan como descartadas**, incluida la final. Es lo que
-  evita que un salto de línea al cierre o los finales `\r\n` inventen descartes.
-- **El campo `file` sale del nombre del archivo procesado**, no de la primera columna del CSV: es el
-  nombre con el que se pidió el archivo y el único que el cliente puede correlacionar con el listado.
-- **Un archivo sin líneas válidas se incluye con `"lines": []`**, no se omite. Omitirlo haría
-  indistinguible "el archivo existe pero no traía nada usable" de "el archivo no existe" o "no se pudo
-  descargar", que son tres cosas distintas. En las corridas reales es el caso de la mayoría de los
-  archivos.
+### Formato de los datos
+
+- **Una línea es válida con exactamente cuatro columnas no vacías**, la tercera numérica y la cuarta de
+  32 caracteres hexadecimales. Todo lo demás se descarta.
+- **`hex` se valida entero**, `/^[0-9a-f]{32}$/i`: el enunciado pide "32 dígitos", no un string
+  cualquiera. Descarta 5 filas reales con 30 caracteres.
+- **`number` con `Number.isFinite(Number(x))`**, la lectura literal de "numérico" — acepta `1e5`. Si se
+  esperan sólo enteros, es un regex en `files.parser.js`.
+- **Más de cuatro columnas también se descarta.** Es la única regla por encima de los criterios: el CSV
+  no usa comillas, así que una coma de más es dato corrupto, y aceptarla obligaría a elegir
+  arbitrariamente cuáles cuatro columnas valen.
+- **La cabecera se descarta por posición**, no por su texto: una cabecera inesperada inflaría
+  `lines_discarded`, que mide datos corruptos.
+- **Las líneas en blanco no cuentan como descartadas.** Evita que un salto final o un `\r\n` invente
+  descartes.
+- **`file` sale del nombre pedido**, no de la primera columna: es el único que el cliente puede
+  correlacionar con el listado.
+- **Un archivo sin líneas válidas se incluye con `"lines": []`.** Omitirlo haría indistinguibles tres
+  cosas distintas: no traía nada usable, no existe, o no se pudo descargar.
 
 ### El filtro `?fileName=`
 
-- **Se filtra antes de descargar, no después.** Filtrar el resultado daría la misma respuesta gastando
-  N-1 descargas, que es justamente lo que el punto opcional viene a evitar. El service recorta el
-  listado y recién ahí descarga; contra el API externo real eso son 1 descarga en vez de 9.
-- **Un `fileName` que no está en el listado responde `404`, no `200` con `[]`.** El criterio dejaba
-  las dos abiertas. `[]` es la respuesta correcta a "este archivo no traía nada usable", y usarla
-  también para "este archivo no existe" volvería indistinguibles dos cosas que el cliente resuelve de
-  forma distinta: una es un dato, la otra es un nombre mal escrito. Es el mismo razonamiento por el
-  que un archivo sin líneas válidas se incluye con `"lines": []` en vez de omitirse.
-- **Ese `404` reutiliza `EXTERNAL_API_FILE_NOT_FOUND` en vez de estrenar un código.** Para el cliente
-  significa exactamente lo mismo que ya significaba: el API externo no sirve ese archivo. Un código
-  nuevo distinguiría *cómo* se enteró el API —por el listado o por un `404` de la descarga—, que es
-  detalle de implementación y no cambia nada de lo que el cliente puede hacer al respecto.
-- **El `fileName` presente pero vacío es `400`, no "sin filtro".** Tratarlo como ausente sería adivinar
-  la intención: quien mandó el param quiso filtrar, y no dijo por qué archivo. Lo mismo con el param
-  repetido (`?fileName=a&fileName=b`), donde Express entrega un array: tampoco nombra un archivo.
-- **El filtro no cambia el contrato de la respuesta.** Sigue siendo el mismo array pelado, con un
-  elemento; y una descarga que falla sigue degradando a `200` con `[]`, igual que sin filtro. La
-  validación del param vive en el controller, que es la capa que ve `req`; la decisión de qué se
-  descarga vive en el service, que es la que conoce el listado.
+- **Filtra antes de descargar.** Recortar el resultado daría la misma respuesta gastando N−1 descargas,
+  que es justo lo que el punto opcional evita: contra el API real son 1 descarga en vez de 9.
+- **Un nombre que no está en el listado responde `404`**, no `200` con `[]`. `[]` ya significa "no traía
+  nada usable"; usarlo también para "no existe" mezcla un dato con un nombre mal escrito.
+- **Reutiliza `EXTERNAL_API_FILE_NOT_FOUND`** en vez de un código nuevo: para el cliente significa lo
+  mismo, y *cómo* se enteró el API es detalle de implementación.
+- **Un `fileName` vacío o repetido es `400`.** Tratarlo como ausente sería adivinar la intención de quien
+  pidió filtrar sin decir por qué archivo.
+- **No cambia el contrato:** mismo array pelado, y una descarga fallida sigue degradando a `200` con `[]`.
 
 ### Resiliencia
 
-- **El parser descarta, no falla.** `files.parser.js` es una función pura que nunca lanza por datos
-  corruptos: cuenta las líneas inválidas en `discarded` y el controller las publica como
-  `lines_discarded`. Un archivo con basura no rompe la respuesta de los demás.
-- **Las descargas van en paralelo con `Promise.allSettled`**, que es lo que hace que una falla parcial
-  sea parcial: una descarga rechazada no cancela a las otras, y los resultados conservan el orden del
-  listado, así que cada fallo se puede reasociar con su archivo.
-- **La falla del listado sí propaga.** No tiene nada de parcial: sin listado no hay nada que devolver,
-  así que sale un `502` en vez de un `200` con `[]`, que mentiría diciendo que el API externo no tiene
-  archivos.
-- **Un `uncaughtException` no reinicia el proceso: se loguea y el servidor sigue en pie.** Es lo
-  contrario de la práctica habitual —loguear y salir, para que un supervisor levante un proceso limpio—
-  y es deliberado. Acá `npm start` es todo el deploy: no hay supervisor que reinicie nada, así que
-  salir deja al evaluador sin API. Y el riesgo que justifica salir, un proceso con estado corrupto, no
-  aplica: este API es un proxy de sólo lectura que no guarda nada entre requests, así que la siguiente
-  se sirve igual de bien. En un deploy con supervisor la decisión se revierte.
+- **El parser descarta, no lanza.** Cuenta las líneas inválidas y el controller las publica como
+  `lines_discarded`; un archivo con basura no rompe la respuesta de los demás.
+- **Descargas en paralelo con `Promise.allSettled`**, que es lo que hace parcial a una falla parcial: una
+  rechazada no cancela las otras y el orden permite reasociar cada fallo con su archivo.
+- **La falla del listado sí propaga**, con `502`. Sin listado no hay nada parcial que devolver, y un
+  `200` con `[]` mentiría diciendo que el API externo no tiene archivos.
+- **Un `uncaughtException` no reinicia el proceso: se loguea y el servidor sigue.** Es lo contrario de la
+  práctica habitual, y es deliberado: acá `npm start` es todo el deploy, no hay supervisor que levante
+  otro, y siendo un proxy de sólo lectura sin estado entre requests la siguiente request se sirve igual.
 
 ### HTTP
 
-- **Las dos formas de respuesta las fija el enunciado, y ninguna se toca.** `/files/data` va como array
-  pelado y `/files/list` con el envoltorio `{ "files": [...] }` del API externo. Son contrarias entre sí
-  y así se dejan: uniformarlas —o agregarles un envelope `{ meta, data }`— rompería lo único que el
-  evaluador verifica copiando el curl del enunciado. La traducción vive en los bordes: el repositorio
-  desenvuelve el listado para el dominio, y el controller de `/files/list` lo vuelve a envolver al salir.
-- **CORS: se responde `Access-Control-Allow-Origin: *`.** El frontend se sirve desde otro puerto, así
-  que sin ese header el browser bloquea la respuesta. Es el **único** header CORS que se manda: el API
-  es de sólo lectura, no recibe credenciales ni headers custom, así que sus `GET` son *simple requests*
-  y nunca disparan un preflight `OPTIONS`. Agregar `Allow-Methods` o `Allow-Headers` sería ruido.
-- **`notFound` y `errorHandler` viven en el mismo archivo.** No pueden ser la misma función —Express
-  los distingue por aridad, 3 parámetros contra 4— pero son las dos puntas de la misma cadena.
-- **Los errores son una factory sobre `Error`**, no subclases: conserva el stack trace sin introducir
-  clases.
-- **El stack trace nunca sale al cliente**, y un error no tipado se reporta como `Internal server
-  error`. El detalle real queda en la línea de log.
+- **Un solo header CORS**, `Access-Control-Allow-Origin: *`. El API es de sólo lectura, sin credenciales
+  ni headers custom, así que sus `GET` son *simple requests* y nunca disparan un preflight.
+- **`notFound` y `errorHandler` en un archivo.** No pueden ser la misma función —Express los distingue
+  por aridad— pero son las dos puntas de la misma cadena.
+- **Los errores son una factory sobre `Error`**, no subclases: conserva el stack sin introducir clases.
+- **El stack nunca sale al cliente.** Un error no tipado se reporta como `Internal server error` y la
+  causa real queda en la línea de log.
 
 ### Plataforma
 
-- **ESM nativo** (`"type": "module"`) en vez de CommonJS. Obliga a extensiones `.js` explícitas en los
-  imports relativos, pero es JavaScript moderno sin transpilar — y el challenge prohíbe Babel.
-- **Sin variables de entorno.** El challenge las prohíbe como requisito; hardcodear en
-  `src/shared/config.js` evita además el parseo de strings y los defaults duplicados.
-- **Versiones fijadas por Node 14**: `pino@8` (la 9 exige Node 18+), `chai@4` (la 5 es ESM-only y exige
-  Node 18+), `mocha@10`, `sinon@15`. El detalle está en `.claude/skills/node14-constraints/`.
-- **Todo el código fuente en inglés** —identificadores, comentarios, mensajes de error, nombres de
-  tests—. La documentación queda en español.
-
-### Estilo de código
-
-El proyecto sigue [JavaScript Standard Style](https://standardjs.com/), el punto opcional `TASK-011`.
-`npm run lint` corre `standard` sobre todo el repositorio —`src/` **y** `test/`— y el CI lo reporta
-como un check propio.
-
-- **`standard@17`, no la última por inercia sino porque su rango de `engines` incluye Node 14**
-  (`^12.22.0 || ^14.17.0 || >=16.0.0`). Es el mismo rango de `eslint@8`, del que depende. Node 14.17 es
-  el piso; el `.nvmrc` del proyecto resuelve a 14.21.3, así que entra.
-- **El código ya cumplía el estándar antes de instalarlo.** `standard --fix` no reescribió una sola
-  línea: sin punto y coma, comillas simples, indentación de 2 espacios y espaciado de bloques ya eran
-  la convención del repositorio. Instalar el linter no fue un reformateo, fue hacer verificable lo que
-  ya se venía escribiendo a mano.
-- **Los globals de Mocha se declaran una sola vez**, con `"standard": { "env": ["mocha"] }` en el
-  `package.json`, en lugar de repetir `/* eslint-env mocha */` en cabecera de cada uno de los trece
-  archivos de test. `standard` no admite configuración por directorio, y ensuciar `src/` con unos
-  globals que nunca se usan es más barato que trece comentarios que hay que acordarse de copiar.
-- **Las aserciones de propiedad de Chai se escribieron como llamada.** `expect(x).to.be.a('string')
-  .and.not.be.empty` es una expresión sin efecto —`no-unused-expressions`— y además falla en silencio
-  si uno escribe mal la propiedad. Pasó a `.and.not.equal('')`: misma aserción, y si el nombre está mal
-  el test rompe en vez de pasar de largo.
-- **El `// eslint-disable-next-line no-unused-vars` sobre `errorHandler` se queda.** El `next` que no
-  se usa es lo que le da al handler la aridad de 4 parámetros con la que Express lo reconoce como
-  manejador de errores; borrarlo desarmaría el manejo de errores entero. `standard` no se queja —su
-  `no-unused-vars` va con `args: 'none'`— pero el comentario documenta la restricción para quien lea.
+- **ESM nativo** en vez de CommonJS: obliga a extensiones `.js` explícitas, pero es JavaScript moderno
+  sin transpilar — y el enunciado prohíbe Babel en el API.
+- **Sin variables de entorno**, como pide el enunciado. Hardcodear en `src/shared/config.js` evita además
+  parseo de strings y defaults duplicados.
+- **Versiones fijadas por Node 14**: `pino@8`, `chai@4`, `mocha@10`, `sinon@15`, `standard@17`. Las
+  siguientes majors exigen Node 18+.
+- **Todo el código en inglés**; la documentación, en español.
 
 ## Skills de Claude Code
 
