@@ -1,16 +1,11 @@
-# Runs the whole challenge: the API and the web client.
+# Runs the API on its own. The client has its own compose in its own
+# repository: neither depends on where the other is checked out.
 #
-# It lives in the API repository and builds the client from a sibling
-# directory, so both repositories have to be cloned next to each other:
+#   docker compose up --build     ->  http://localhost:3000
 #
-#   toolbox/
-#   ├── toolbox-challenge-backend    <- docker compose up runs from here
-#   └── toolbox-challenge-frontend
-#
-# The client is a static bundle: its JavaScript runs in the browser, not in the
-# container, so it reaches the API at localhost:3000 on the host machine. That
-# is why the API publishes its port instead of the two services talking over
-# the compose network.
+# The port is published because the client that consumes this API is a static
+# bundle whose JavaScript runs in the browser, so it reaches the API on the host
+# rather than over a compose network.
 
 services:
   api:
@@ -19,14 +14,4 @@ services:
     container_name: toolbox-api
     ports:
       - "3000:3000"
-    restart: unless-stopped
-
-  web:
-    build: ../toolbox-challenge-frontend
-    image: toolbox-challenge-web
-    container_name: toolbox-web
-    ports:
-      - "8080:80"
-    depends_on:
-      - api
     restart: unless-stopped
